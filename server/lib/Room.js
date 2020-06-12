@@ -216,7 +216,7 @@ class Room extends EventEmitter
 		});
 
 		// If nobody left in lobby we should check if room is empty too and initiating
-		// rooms selfdestruction sequence  
+		// rooms selfdestruction sequence
 		this._lobby.on('lobbyEmpty', () =>
 		{
 			if (this.checkEmpty())
@@ -518,7 +518,7 @@ class Room extends EventEmitter
 				// initiate mediasoup Transports and be ready when he later joins.
 
 				const { forceTcp, producing, consuming } = request.data;
-				
+
 				const webRtcTransportOptions =
 				{
 					...config.mediasoup.webRtcTransport,
@@ -903,7 +903,7 @@ class Room extends EventEmitter
 			case 'chatMessage':
 			{
 				const { chatMessage } = request.data;
-	
+
 				this._chatHistory.push(chatMessage);
 
 				// Spread to others
@@ -973,7 +973,7 @@ class Room extends EventEmitter
 			case 'setAccessCode':
 			{
 				const { accessCode } = request.data;
-	
+
 				this._accessCode = accessCode;
 
 				// Spread to others
@@ -993,7 +993,7 @@ class Room extends EventEmitter
 			case 'setJoinByAccessCode':
 			{
 				const { joinByAccessCode } = request.data;
-	
+
 				this._joinByAccessCode = joinByAccessCode;
 
 				// Spread to others
@@ -1033,7 +1033,7 @@ class Room extends EventEmitter
 			case 'sendFile':
 			{
 				const { magnetUri } = request.data;
-	
+
 				this._fileHistory.push({ peerId: peer.id, magnetUri: magnetUri });
 
 				// Spread to others
@@ -1131,6 +1131,9 @@ class Room extends EventEmitter
 					rtpCapabilities : consumerPeer.rtpCapabilities,
 					paused          : producer.kind === 'video'
 				});
+
+			if (producer.kind === 'audio')
+				await consumer.setPriority(255);
 		}
 		catch (error)
 		{
