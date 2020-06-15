@@ -41,13 +41,13 @@ module.exports =
 		cert : `${__dirname}/../certs/mediasoup-demo.localhost.cert.pem`,
 		key  : `${__dirname}/../certs/mediasoup-demo.localhost.key.pem`
 	},
-	// listening Host or IP 
+	// listening Host or IP
 	// If omitted listens on every IP. ("0.0.0.0" and "::")
 	//listeningHost: 'localhost',
 	// Listening port for https server.
 	listeningPort         : 443,
 	// Any http request is redirected to https.
-	// Listening port for http server. 
+	// Listening port for http server.
 	listeningRedirectPort : 80,
 	// Listens only on http, only on listeningPort
 	// listeningRedirectPort disabled
@@ -162,6 +162,16 @@ module.exports =
 			minimumAvailableOutgoingBitrate : 600000,
 			// Additional options that are not part of WebRtcTransportOptions.
 			maxIncomingBitrate              : 1500000
-		}
+		},
+
+		plainTransportOptions :
+			{
+				listenIp :
+					{
+						ip          : process.env.MEDIASOUP_LISTEN_IP || '192.168.1.254',
+						announcedIp : process.env.MEDIASOUP_ANNOUNCED_IP
+					},
+				maxSctpMessageSize : 262144
+			}
 	}
 };

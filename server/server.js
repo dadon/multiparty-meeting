@@ -115,6 +115,174 @@ passport.deserializeUser((user, done) =>
 	done(null, user);
 });
 
+/**
+ * For every API request, verify that the roomId in the path matches and
+ * existing room.
+ */
+app.param(
+	'roomId', (req, res, next, roomId) =>
+	{
+		let room = rooms.get(roomId);
+		// The room must exist for all API requests.
+		if (!room)
+		{
+			const error = new Error(`room with id "${roomId}" not found`);
+
+			error.status = 404;
+			throw error;
+		}
+
+		req.room = room;
+
+		next();
+	});
+
+/**
+ * API GET resource that returns the mediasoup Router RTP capabilities of
+ * the room.
+ */
+app.get(
+	'/rooms/:roomId', (req, res) =>
+	{
+		const data = req.room.getRouterRtpCapabilities();
+
+		res.status(200).json(data);
+	});
+
+/**
+ * POST API to create a Broadcaster.
+ */
+app.post(
+	'/rooms/:roomId/broadcasters', async (req, res, next) =>
+	{
+		const {
+			id,
+			displayName,
+			device,
+			rtpCapabilities
+		} = req.body;
+
+		try
+		{
+			const data = await req.room.createBroadcaster(
+				{
+					id,
+					displayName,
+					device,
+					rtpCapabilities
+				});
+
+			res.status(200).json(data);
+		}
+		catch (error)
+		{
+			next(error);
+		}
+	});
+
+/**
+ * DELETE API to delete a Broadcaster.
+ */
+app.delete(
+	'/rooms/:roomId/broadcasters/:broadcasterId', (req, res) =>
+	{
+		const { broadcasterId } = req.params;
+
+		req.room.deleteBroadcaster({ broadcasterId });
+
+		res.status(200).send('broadcaster deleted');
+	});
+
+/**
+ * POST API to create a mediasoup Transport associated to a Broadcaster.
+ * It can be a PlainTransport or a WebRtcTransport depending on the
+ * type parameters in the body. There are also additional parameters for
+ * PlainTransport.
+ */
+app.post(
+	'/rooms/:roomId/broadcasters/:broadcasterId/transports',
+	async (req, res, next) =>
+	{
+		const { broadcasterId } = req.params;
+		const { type, rtcpMux, comedia } = req.body;
+
+		try
+		{
+			const data = await req.room.createBroadcasterTransport(
+				{
+					broadcasterId,
+					type,
+					rtcpMux,
+					comedia
+				});
+
+			res.status(200).json(data);
+		}
+		catch (error)
+		{
+			next(error);
+		}
+	});
+
+/**
+ * POST API to connect a Transport belonging to a Broadcaster. Not needed
+ * for PlainTransport if it was created with comedia option set to true.
+ */
+app.post(
+	'/rooms/:roomId/broadcasters/:broadcasterId/transports/:transportId/connect',
+	async (req, res, next) =>
+	{
+		const { broadcasterId, transportId } = req.params;
+		const { dtlsParameters } = req.body;
+
+		try
+		{
+			const data = await req.room.connectBroadcasterTransport(
+				{
+					broadcasterId,
+					transportId,
+					dtlsParameters
+				});
+
+			res.status(200).json(data);
+		}
+		catch (error)
+		{
+			next(error);
+		}
+	});
+
+/**
+ * POST API to create a mediasoup Producer associated to a Broadcaster.
+ * The exact Transport in which the Producer must be created is signaled in
+ * the URL path. Body parameters include kind and rtpParameters of the
+ * Producer.
+ */
+app.post(
+	'/rooms/:roomId/broadcasters/:broadcasterId/transports/:transportId/producers',
+	async (req, res, next) =>
+	{
+		const { broadcasterId, transportId } = req.params;
+		const { kind, rtpParameters } = req.body;
+
+		try
+		{
+			const data = await req.room.createBroadcasterProducer(
+				{
+					broadcasterId,
+					transportId,
+					kind,
+					rtpParameters
+				});
+
+			res.status(200).json(data);
+		}
+		catch (error)
+		{
+			next(error);
+		}
+	});
+
 let mainListener;
 let io;
 let oidcClient;
@@ -445,10 +613,12 @@ async function runHttpsServer()
 	}
 
 	// https or http
-	if(config.listeningHost)	
+	if(config.listeningHost)
 		mainListener.listen(config.listeningPort, config.listeningHost);
 	else
 		mainListener.listen(config.listeningPort);
+
+
 }
 
 function isPathAlreadyTaken(url)
