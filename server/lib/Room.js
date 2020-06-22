@@ -486,6 +486,7 @@ class Room extends EventEmitter
 				{
 					consumerPeer : peer,
 					producerPeer : broadcaster,
+					audioPriority: 100,
 					producer
 				}).catch(() => {});
 		}
@@ -1092,12 +1093,13 @@ class Room extends EventEmitter
 
 				for (const broadcaster of this._broadcasters.values()) {
 					for (const producer of broadcaster.data.producers.values()) {
-						console.log("add producer", producer.id, producer)
+						// console.log("add producer", producer.id, producer)
 						this._createConsumer(
 							{
 								consumerPeer : peer,
 								producerPeer : broadcaster,
-								producer
+								audioPriority: 100,
+								producer,
 							}).catch(() => {});
 					}
 				}
@@ -1892,7 +1894,7 @@ class Room extends EventEmitter
 	 *
 	 * @async
 	 */
-	async _createConsumer({ consumerPeer, producerPeer, producer })
+	async _createConsumer({ consumerPeer, producerPeer, producer, audioPriority })
 	{
 		logger.debug(
 			'_createConsumer() [consumerPeer:"%s", producerPeer:"%s", producer:"%s"]',
@@ -1947,7 +1949,11 @@ class Room extends EventEmitter
 				});
 
 			if (producer.kind === 'audio')
-				await consumer.setPriority(255);
+				if (!audioPriority) {
+					await consumer.setPriority(255);
+				} else {
+					await consumer.setPriority(audioPriority);
+				}
 		}
 		catch (error)
 		{
