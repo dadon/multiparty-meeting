@@ -288,6 +288,22 @@ app.post(
 		}
 	});
 
+app.get("/rooms-stat/:key", (req, res) => {
+	const key = req.params.key;
+	if (key !== "quboXvvxcW2r3tdkPXD0Y") {
+		res.status(404);
+		return;
+	}
+	const result = [];
+	for (let room of rooms.values()) {
+		result.push(room.dump());
+	}
+
+	res.json({
+		rooms: result,
+	})
+});
+
 let mainListener;
 let io;
 let oidcClient;
