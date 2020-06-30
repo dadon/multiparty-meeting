@@ -1896,6 +1896,8 @@ class Room extends EventEmitter
 						});
 				}
 
+				cb();
+
 				break;
 			}
 
@@ -1914,6 +1916,8 @@ class Room extends EventEmitter
 							peerId : peerId,
 						});
 				}
+
+				cb();
 
 				break;
 			}
