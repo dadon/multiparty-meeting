@@ -1880,6 +1880,44 @@ class Room extends EventEmitter
 				break;
 			}
 
+			case 'startSpeaking':
+			{
+				const { peerId } = request.data;
+
+				for (const peer of this._getJoinedPeers())
+				{
+					if (peer.id === peerId) continue;
+
+					this._notification(
+						peer.socket,
+						'startSpeaking',
+						{
+							peerId : peerId,
+						});
+				}
+
+				break;
+			}
+
+			case 'stopSpeaking':
+			{
+				const { peerId } = request.data;
+
+				for (const peer of this._getJoinedPeers())
+				{
+					if (peer.id === peerId) continue;
+
+					this._notification(
+						peer.socket,
+						'stopSpeaking',
+						{
+							peerId : peerId,
+						});
+				}
+
+				break;
+			}
+
 			default:
 			{
 				logger.error('unknown request.method "%s"', request.method);
