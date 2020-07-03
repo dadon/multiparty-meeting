@@ -696,7 +696,10 @@ function isPathAlreadyTaken(url)
  */
 async function runWebSocketServer()
 {
-	io = require('socket.io')(mainListener);
+	io = require('socket.io')(mainListener, {
+		pingTimeout: 15 * 1000,
+		pingInterval: 30 * 1000
+	});
 
 	io.use(
 		sharedSession(session, {
