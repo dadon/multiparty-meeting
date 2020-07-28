@@ -1259,10 +1259,10 @@ class Room extends EventEmitter
 				peer.addProducer(producer.id, producer);
 
 				// Set Producer events.
-				producer.on('score', (score) =>
-				{
-					this._notification(peer.socket, 'producerScore', { producerId: producer.id, score });
-				});
+				// producer.on('score', (score) =>
+				// {
+				// 	this._notification(peer.socket, 'producerScore', { producerId: producer.id, score });
+				// });
 
 				producer.on('videoorientationchange', (videoOrientation) =>
 				{
@@ -2032,23 +2032,23 @@ class Room extends EventEmitter
 			this._notification(consumerPeer.socket, 'consumerResumed', { consumerId: consumer.id });
 		});
 
-		consumer.on('score', (score) =>
-		{
-			this._notification(consumerPeer.socket, 'consumerScore', { consumerId: consumer.id, score });
-		});
+		// consumer.on('score', (score) =>
+		// {
+		// 	this._notification(consumerPeer.socket, 'consumerScore', { consumerId: consumer.id, score });
+		// });
 
-		consumer.on('layerschange', (layers) =>
-		{
-			this._notification(
-				consumerPeer.socket,
-				'consumerLayersChanged',
-				{
-					consumerId    : consumer.id,
-					spatialLayer  : layers ? layers.spatialLayer : null,
-					temporalLayer : layers ? layers.temporalLayer : null
-				}
-			);
-		});
+		// consumer.on('layerschange', (layers) =>
+		// {
+		// 	this._notification(
+		// 		consumerPeer.socket,
+		// 		'consumerLayersChanged',
+		// 		{
+		// 			consumerId    : consumer.id,
+		// 			spatialLayer  : layers ? layers.spatialLayer : null,
+		// 			temporalLayer : layers ? layers.temporalLayer : null
+		// 		}
+		// 	);
+		// });
 
 		// Send a request to the remote Peer with Consumer parameters.
 		try
@@ -2072,14 +2072,14 @@ class Room extends EventEmitter
 			// video, resume the Consumer to ask for an efficient key frame.
 			await consumer.resume();
 
-			this._notification(
-				consumerPeer.socket,
-				'consumerScore',
-				{
-					consumerId : consumer.id,
-					score      : consumer.score
-				}
-			);
+			// this._notification(
+			// 	consumerPeer.socket,
+			// 	'consumerScore',
+			// 	{
+			// 		consumerId : consumer.id,
+			// 		score      : consumer.score
+			// 	}
+			// );
 		}
 		catch (error)
 		{
