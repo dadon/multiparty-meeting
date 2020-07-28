@@ -1987,7 +1987,7 @@ class Room extends EventEmitter
 				{
 					producerId      : producer.id,
 					rtpCapabilities : consumerPeer.rtpCapabilities,
-					paused          : producer.kind === 'video'
+					paused          : true,//producer.kind === 'video'
 				});
 
 			if (producer.kind === 'audio')
