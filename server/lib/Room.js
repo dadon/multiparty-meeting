@@ -93,7 +93,7 @@ class Room extends EventEmitter
 		// Create a mediasoup AudioLevelObserver on first router
 		const audioLevelObserver = await firstRouter.createAudioLevelObserver(
 			{
-				maxEntries : 1,
+				maxEntries : 8,
 				threshold  : -80,
 				interval   : 800
 			});
@@ -713,32 +713,32 @@ class Room extends EventEmitter
 		// Set audioLevelObserver events.
 		this._audioLevelObserver.on('volumes', (volumes) =>
 		{
-			const { producer, volume } = volumes[0];
-
-			// Notify all Peers.
-			for (const peer of this._getJoinedPeers())
-			{
-				this._notification(
-					peer.socket,
-					'activeSpeaker',
-					{
-						peerId : producer.appData.peerId,
-						volume : volume
-					});
-			}
+			// const { producer, volume } = volumes[0];
+			//
+			// // Notify all Peers.
+			// for (const peer of this._getJoinedPeers())
+			// {
+			// 	this._notification(
+			// 		peer.socket,
+			// 		'activeSpeaker',
+			// 		{
+			// 			peerId : producer.appData.peerId,
+			// 			volume : volume
+			// 		});
+			// }
 		});
 
 		this._audioLevelObserver.on('silence', () =>
 		{
 			// Notify all Peers.
-			for (const peer of this._getJoinedPeers())
-			{
-				this._notification(
-					peer.socket,
-					'activeSpeaker',
-					{ peerId: null }
-				);
-			}
+			// for (const peer of this._getJoinedPeers())
+			// {
+			// 	this._notification(
+			// 		peer.socket,
+			// 		'activeSpeaker',
+			// 		{ peerId: null }
+			// 	);
+			// }
 		});
 	}
 
