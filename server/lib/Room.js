@@ -482,21 +482,22 @@ class Room extends EventEmitter
 		// Optimization: Create a server-side Consumer for each Peer.
 		for (const peer of this._getJoinedPeers())
 		{
+			console.log(broadcaster.id, "create consumer for ", peer)
 			this._createConsumer(
 				{
 					consumerPeer : peer,
 					producerPeer : broadcaster,
 					audioPriority: 100,
-					producer
+					producer,
 				}).catch(() => {});
 		}
 
 		// Add into the audioLevelObserver.
-		if (producer.kind === 'audio')
-		{
-			this._audioLevelObserver.addProducer({ producerId: producer.id })
-				.catch(() => {});
-		}
+		// if (producer.kind === 'audio')
+		// {
+		// 	this._audioLevelObserver.addProducer({ producerId: producer.id })
+		// 		.catch(() => {});
+		// }
 
 		return { id: producer.id };
 	}
