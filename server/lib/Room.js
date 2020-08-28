@@ -29,6 +29,9 @@ const config = require('../config/config');
 
 const logger = new Logger('Room');
 
+const roomsMap = new Map();
+const uberProducers = new Map();
+
 // In case they are not configured properly
 const roomAccess =
 {
@@ -101,7 +104,13 @@ class Room extends EventEmitter
 		firstRouter = null;
 		shuffledWorkers = null;
 
-		return new Room({ roomId, mediasoupRouters, audioLevelObserver });
+		const room = new Room({ roomId, mediasoupRouters, audioLevelObserver });
+
+		await room._pipeProducersToNewRouter();
+
+		roomsMap.set(roomId, room);
+
+		return room;
 	}
 
 	constructor({ roomId, mediasoupRouters, audioLevelObserver })
@@ -155,6 +164,15 @@ class Room extends EventEmitter
 		//   - {Map<String, mediasoup.DataConsumers>} dataConsumers
 		// @type {Map<String, Object>}
 		this._broadcasters = new Map();
+
+		// Map of broadcasters indexed by id. Each Object has:
+		// - {String} id
+		// - {Object} data
+		//   - {String} producerId
+		// 	 - {String} mainRoom
+		//   - {String[]} roomIds
+		// @type {Map<String, Object>}
+		this._multiRoomProducers = new Map();
 
 		this._selfDestructTimeout = null;
 
@@ -555,6 +573,8 @@ class Room extends EventEmitter
 
 		// Emit 'close' event.
 		this.emit('close');
+
+		roomsMap.delete(this._roomId);
 	}
 
 	verifyPeer({ id, token })
@@ -1105,6 +1125,23 @@ class Room extends EventEmitter
 					}
 				}
 
+				// TODO: create consumers for each uber producer
+				for (let [producerId, uberProducer] of uberProducers) {
+					const { producerPeer, producer, router, roomIds } = uberProducer;
+
+					if (!roomIds.includes(this._roomId)) continue;
+
+					this._createConsumer(
+						{
+							consumerPeer : peer,
+							producerPeer : producerPeer,
+							audioPriority: 255,
+							router,
+							producer,
+						}).catch(() => {});
+				}
+
+
 				// Notify the new Peer to all other Peers.
 				for (const otherPeer of this._getJoinedPeers(peer))
 				{
@@ -1214,6 +1251,14 @@ class Room extends EventEmitter
 			{
 				let { appData } = request.data;
 
+				let { roomIds } = appData;
+				const isUberProducer = roomIds && roomIds.length > 1;
+				if (isUberProducer) {
+					roomIds = roomIds.filter(roomId => roomId !== this._roomId);
+				}
+
+				console.log("produce", appData);
+
 				if (
 					appData.source === 'screen' &&
 					!this._hasPermission(peer, SHARE_SCREEN)
@@ -1275,14 +1320,35 @@ class Room extends EventEmitter
 				cb(null, { id: producer.id });
 
 				// Optimization: Create a server-side Consumer for each Peer.
-				for (const otherPeer of this._getJoinedPeers(peer))
-				{
-					this._createConsumer(
-						{
-							consumerPeer : otherPeer,
-							producerPeer : peer,
-							producer
-						});
+				for (const otherPeer of this._getJoinedPeers(peer)) {
+					this._createConsumer({
+						consumerPeer : otherPeer,
+						producerPeer : peer,
+						producer
+					});
+				}
+
+				// UBER
+				if (isUberProducer && roomIds.length) {
+					const router = this._mediasoupRouters.get(peer.routerId);
+
+					uberProducers.set(producer.id, {
+						producerPeer: peer,
+						producer,
+						router,
+						roomIds,
+					});
+
+					for (let roomId of roomIds) {
+						const room = roomsMap.get(roomId);
+
+						if (!room) {
+							logger.error(`[uber producer] room=${roomId} is not found`);
+							continue;
+						}
+
+						await room.createConsumersForUberProducer(producer.id);
+					}
 				}
 
 				// Add into the audioLevelObserver.
@@ -1308,6 +1374,10 @@ class Room extends EventEmitter
 					throw new Error(`producer with id "${producerId}" not found`);
 
 				producer.close();
+
+				if (uberProducers.get(producer.id)) {
+					uberProducers.delete(producer.id);
+				}
 
 				// Remove from its map.
 				peer.removeProducer(producer.id);
@@ -1932,12 +2002,48 @@ class Room extends EventEmitter
 		}
 	}
 
+	async createConsumersForUberProducer(producerId) {
+		const uberProducer = uberProducers.get(producerId);
+		if (!uberProducer) {
+			logger.error(`[createConsumersForUberProducer] fail producer=${producerId} is not found`);
+			return;
+		}
+
+		const { producerPeer, producer, router } = uberProducer;
+
+		const peers = this._getJoinedPeers();
+		const routerIds = [];
+		for (let peer of peers) {
+			if (!routerIds.includes(peer.routerId)) {
+				routerIds.push(peer.routerId);
+			}
+		}
+
+		for (const [ routerId, destinationRouter ] of this._mediasoupRouters) {
+			if (routerIds.includes(routerId)) {
+				await router.pipeToRouter({
+					producerId: producer.id,
+					router: destinationRouter
+				});
+			}
+		}
+
+		for (let peer of peers) {
+			this._createConsumer({
+				consumerPeer: peer,
+				producerPeer: producerPeer,
+				producer,
+				router,
+			});
+		}
+	}
+
 	/**
 	 * Creates a mediasoup Consumer for the given mediasoup Producer.
 	 *
 	 * @async
 	 */
-	async _createConsumer({ consumerPeer, producerPeer, producer, audioPriority })
+	async _createConsumer({ consumerPeer, producerPeer, producer, audioPriority, router })
 	{
 		logger.debug(
 			'_createConsumer() [consumerPeer:"%s", producerPeer:"%s", producer:"%s"]',
@@ -1946,7 +2052,9 @@ class Room extends EventEmitter
 			producer.id
 		);
 
-		const router = this._mediasoupRouters.get(producerPeer.routerId);
+		if (!router) {
+			router = this._mediasoupRouters.get(producerPeer.routerId);
+		}
 
 		// Optimization:
 		// - Create the server-side Consumer. If video, do it paused.
@@ -1956,15 +2064,13 @@ class Room extends EventEmitter
 		//   server-side Consumer (when resuming it).
 
 		// NOTE: Don't create the Consumer if the remote Peer cannot consume it.
-		if (
-			!consumerPeer.rtpCapabilities ||
-			!router.canConsume(
-				{
-					producerId      : producer.id,
-					rtpCapabilities : consumerPeer.rtpCapabilities
-				})
-		)
-		{
+		const routerCantConsume = !router.canConsume({
+			producerId: producer.id,
+			rtpCapabilities: consumerPeer.rtpCapabilities
+		});
+
+		if (!consumerPeer.rtpCapabilities || routerCantConsume) {
+			logger.error(`[_createConsumer] fail routerCantConsume=${routerCantConsume} noRtpCapabilities=${!consumerPeer.rtpCapabilities}`);
 			return;
 		}
 
@@ -2257,6 +2363,17 @@ class Room extends EventEmitter
 					router : this._currentRouter
 				});
 			}
+		}
+
+		for (let [producerId, uberProducer] of uberProducers) {
+			const { producerPeer, producer, router, roomIds } = uberProducer;
+
+			if (!roomIds.includes(this._roomId)) continue;
+
+			await router.pipeToRouter({
+				producerId,
+				router : this._currentRouter
+			});
 		}
 	}
 
