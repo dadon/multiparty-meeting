@@ -2,6 +2,9 @@
 
 process.title = 'multiparty-meeting-server';
 
+const Sentry = require("@sentry/node");
+Sentry.init({ dsn: "https://a75b18e674dd426595c40b0312777d56@o393384.ingest.sentry.io/5410610" });
+
 const config = require('./config/config');
 const fs = require('fs');
 const http = require('http');

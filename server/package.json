@@ -12,6 +12,7 @@
 		"lint": "eslint -c .eslintrc.json --ext .js *.js lib/"
 	},
 	"dependencies": {
+		"@sentry/node": "^5.22.3",
 		"awaitqueue": "^1.0.0",
 		"axios": "^0.19.2",
 		"base-64": "^0.1.0",
