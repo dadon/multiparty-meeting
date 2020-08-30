@@ -514,7 +514,7 @@ class Room extends EventEmitter
 				{
 					consumerPeer : peer,
 					producerPeer : broadcaster,
-					audioPriority: 100,
+					consumerPriority: 100,
 					producer,
 				}).catch(() => {});
 		}
@@ -1130,7 +1130,7 @@ class Room extends EventEmitter
 							{
 								consumerPeer : peer,
 								producerPeer : broadcaster,
-								audioPriority: 100,
+								consumerPriority: 100,
 								producer,
 							}).catch(() => {});
 					}
@@ -2058,6 +2058,7 @@ class Room extends EventEmitter
 		for (let peer of peers) {
 			this._createConsumer({
 				consumerPeer: peer,
+				consumerPriority: 255,
 				producerPeer: producerPeer,
 				producer,
 				router,
@@ -2077,7 +2078,7 @@ class Room extends EventEmitter
 				{
 					consumerPeer : peer,
 					producerPeer : producerPeer,
-					audioPriority: 255,
+					consumerPriority: 255,
 					router,
 					producer,
 				}).catch(() => {});
@@ -2107,7 +2108,7 @@ class Room extends EventEmitter
                 {
                     consumerPeer : peer,
                     producerPeer : producerPeer,
-                    audioPriority: 255,
+					consumerPriority: 255,
                     router,
                     producer,
                 }).catch(() => {});
@@ -2121,7 +2122,7 @@ class Room extends EventEmitter
 	 *
 	 * @async
 	 */
-	async _createConsumer({ consumerPeer, producerPeer, producer, audioPriority, router })
+	async _createConsumer({ consumerPeer, producerPeer, producer, consumerPriority, router })
 	{
 		logger.debug(
 			'_createConsumer() [consumerPeer:"%s", producerPeer:"%s", producer:"%s"]',
@@ -2177,12 +2178,17 @@ class Room extends EventEmitter
 					paused          : true,//producer.kind === 'video'
 				});
 
-			if (producer.kind === 'audio')
-				if (!audioPriority) {
-					await consumer.setPriority(255);
-				} else {
-					await consumer.setPriority(audioPriority);
-				}
+			let priority = 150;
+
+			if (producer.kind === 'audio') {
+				priority = 200;
+			}
+
+			if (consumerPriority) {
+				priority = consumerPriority;
+			}
+
+			await consumer.setPriority(priority);
 		}
 		catch (error)
 		{
