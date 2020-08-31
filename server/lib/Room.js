@@ -1138,10 +1138,11 @@ class Room extends EventEmitter
 
 				// TODO: create consumers for each uber producer
 				for (let [producerId, uberProducer] of uberProducers) {
-					console.log("create consumers for uber producer", this._roomId);
 					const { producerPeer, producer, router, roomIds } = uberProducer;
 
 					if (!roomIds.includes(this._roomId)) continue;
+
+					console.log("create consumers for uber producer", this._roomId, peer.id);
 
                     this.pipeToRouter(producerId, peer, 2);
 				}
@@ -2112,7 +2113,9 @@ class Room extends EventEmitter
                     router,
                     producer,
                 }).catch(() => {});
-        });
+        }).catch((e) => {
+        	console.error("pipeTo Uber Router error", e);
+		});
 
 	}
 
