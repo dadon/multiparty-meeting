@@ -72,6 +72,7 @@ class Room extends EventEmitter
 		for (const worker of shuffledWorkers) {
 			const router = await worker.createRouter({ mediaCodecs });
 			mediasoupRouters.set(router.id, router);
+			logger.info('[roomId:%s] create router %s', roomId, router.id);
 		}
 
 		shuffledWorkers = null;
@@ -160,6 +161,8 @@ class Room extends EventEmitter
 	 */
 	async createBroadcaster({ id, displayName, device = {}, rtpCapabilities })
 	{
+		logger.info('createBroadcaster() [roomId:%s id:%s name:%s] create router %s', this._roomId, id, displayName);
+
 		if (typeof id !== 'string' || !id)
 			throw new TypeError('missing body.id');
 		else if (typeof displayName !== 'string' || !displayName)
@@ -171,7 +174,6 @@ class Room extends EventEmitter
 
 		if (this._broadcasters.has(id))
 			throw new Error(`broadcaster with id "${id}" already exists`);
-
 
 		const broadcaster =
 			{
@@ -591,57 +593,16 @@ class Room extends EventEmitter
 
 			// Assign routerId
 			peer.routerId = await this._getRouterId();
+			logger.info('_peerJoining() assign router [roomId:%s peerId:%s routerId:%s]', this._roomId, peer.id, peer.routerId);
 
 			this._handlePeer(peer);
 
-			if (returning)
-			{
+			if (returning) {
 				this._notification(peer.socket, 'roomBack');
 			}
 			else
 			{
-				const token = jwt.sign({ id: peer.id }, this._uuid, { noTimestamp: true });
-
-				peer.socket.handshake.session.token = token;
-
-				peer.socket.handshake.session.save();
-
-				let turnServers;
-
-				if ('turnAPIURI' in config)
-				{
-					try
-					{
-						const { data } = await axios.get(
-							config.turnAPIURI,
-							{
-								params : {
-									...config.turnAPIparams,
-									'api_key' : config.turnAPIKey,
-									'ip'      : peer.socket.request.connection.remoteAddress
-								}
-							});
-
-						turnServers = [ {
-							urls       : data.uris,
-							username   : data.username,
-							credential : data.password
-						} ];
-					}
-					catch (error)
-					{
-						if ('backupTurnServers' in config)
-							turnServers = config.backupTurnServers;
-
-						logger.error('_peerJoining() | error on REST turn [error:"%o"]', error);
-					}
-				}
-				else if ('backupTurnServers' in config)
-				{
-					turnServers = config.backupTurnServers;
-				}
-
-				this._notification(peer.socket, 'roomReady', { turnServers });
+				this._notification(peer.socket, 'roomReady');
 			}
 		})
 			.catch((error) =>
@@ -662,8 +623,8 @@ class Room extends EventEmitter
 		peer.socket.on('request', (request, cb) =>
 		{
 			logger.debug(
-				'Peer "request" event [method:"%s", peerId:"%s"]',
-				request.method, peer.id);
+				'Peer "request" event [roomId:"%s" method:"%s", peerId:"%s"]',
+				this._roomId, request.method, peer.id);
 
 			this._handleSocketRequest(peer, request, cb)
 				.catch((error) =>
@@ -719,8 +680,6 @@ class Room extends EventEmitter
 				if (peer.joined)
 					throw new Error('Peer already joined');
 
-				console.log("peer join", this._roomId);
-
 				const {
 					displayName,
 					picture,
@@ -766,7 +725,6 @@ class Room extends EventEmitter
 							});
 					}
 				}
-
 
 				for (const broadcaster of this._broadcasters.values()) {
 					for (const producer of broadcaster.data.producers.values()) {
@@ -908,20 +866,6 @@ class Room extends EventEmitter
 					roomIds = roomIds.filter(roomId => roomId !== this._roomId);
 				}
 
-				console.log("produce", appData);
-
-				if (
-					appData.source === 'screen' &&
-					!this._hasPermission(peer, SHARE_SCREEN)
-				)
-					throw new Error('peer not authorized');
-
-				if (
-					appData.source === 'extravideo' &&
-					!this._hasPermission(peer, EXTRA_VIDEO)
-				)
-					throw new Error('peer not authorized');
-
 				// Ensure the Peer is joined.
 				if (!peer.joined)
 					throw new Error('Peer not yet joined');
@@ -1019,7 +963,7 @@ class Room extends EventEmitter
 				const producer = peer.getProducer(producerId);
 
 				if (!producer)
-					throw new Error(`producer with id "${producerId}" not found`);
+					throw new Error(`closeProducer producer with id "${producerId}" not found`);
 
 				producer.close();
 
@@ -1045,7 +989,7 @@ class Room extends EventEmitter
 				const producer = peer.getProducer(producerId);
 
 				if (!producer)
-					throw new Error(`producer with id "${producerId}" not found`);
+					throw new Error(`pauseProducer producer with id "${producerId}" not found`);
 
 				await producer.pause();
 
@@ -1064,7 +1008,7 @@ class Room extends EventEmitter
 				const producer = peer.getProducer(producerId);
 
 				if (!producer)
-					throw new Error(`producer with id "${producerId}" not found`);
+					throw new Error(`resumeProducer producer with id "${producerId}" not found`);
 
 				await producer.resume();
 
@@ -1083,7 +1027,7 @@ class Room extends EventEmitter
 				const consumer = peer.getConsumer(consumerId);
 
 				if (!consumer)
-					throw new Error(`consumer with id "${consumerId}" not found`);
+					throw new Error(`pauseConsumer consumer with id "${consumerId}" not found`);
 
 				await consumer.pause();
 
@@ -1102,7 +1046,7 @@ class Room extends EventEmitter
 				const consumer = peer.getConsumer(consumerId);
 
 				if (!consumer)
-					throw new Error(`consumer with id "${consumerId}" not found`);
+					throw new Error(`resumeConsumer consumer with id "${consumerId}" not found`);
 
 				await consumer.resume();
 
@@ -1159,7 +1103,7 @@ class Room extends EventEmitter
 				const consumer = peer.getConsumer(consumerId);
 
 				if (!consumer)
-					throw new Error(`consumer with id "${consumerId}" not found`);
+					throw new Error(`requestConsumerKeyFrame consumer with id "${consumerId}" not found`);
 
 				await consumer.requestKeyFrame();
 
@@ -1189,7 +1133,7 @@ class Room extends EventEmitter
 				const producer = peer.getProducer(producerId);
 
 				if (!producer)
-					throw new Error(`producer with id "${producerId}" not found`);
+					throw new Error(`getProducerStats producer with id "${producerId}" not found`);
 
 				const stats = await producer.getStats();
 
@@ -1204,7 +1148,7 @@ class Room extends EventEmitter
 				const consumer = peer.getConsumer(consumerId);
 
 				if (!consumer)
-					throw new Error(`consumer with id "${consumerId}" not found`);
+					throw new Error(`getConsumerStats consumer with id "${consumerId}" not found`);
 
 				const stats = await consumer.getStats();
 
@@ -1390,6 +1334,8 @@ class Room extends EventEmitter
 			router = this._mediasoupRouters.get(producerPeer.routerId);
 		}
 
+		logger.debug('_createConsumer router:"%s"', router.id);
+
 		// Optimization:
 		// - Create the server-side Consumer. If video, do it paused.
 		// - Tell its Peer about it and wait for its response.
@@ -1402,8 +1348,6 @@ class Room extends EventEmitter
 			producerId: producer.id,
 			rtpCapabilities: consumerPeer.rtpCapabilities
 		});
-
-		console.log("create consumer", routerCantConsume);
 
 		if (!consumerPeer.rtpCapabilities || routerCantConsume) {
 			logger.error(`[_createConsumer] fail routerCantConsume=${routerCantConsume} noRtpCapabilities=${!consumerPeer.rtpCapabilities}`);
@@ -1458,12 +1402,14 @@ class Room extends EventEmitter
 		// Set Consumer events.
 		consumer.on('transportclose', () =>
 		{
+			logger.info('_createConsumer() | transportclose consumerId="%s"', consumer.id);
 			// Remove from its map.
 			consumerPeer.removeConsumer(consumer.id);
 		});
 
 		consumer.on('producerclose', () =>
 		{
+			logger.info('_createConsumer() | producerclose consumerId="%s"', consumer.id);
 			// Remove from its map.
 			consumerPeer.removeConsumer(consumer.id);
 
@@ -1472,11 +1418,13 @@ class Room extends EventEmitter
 
 		consumer.on('producerpause', () =>
 		{
+			logger.info('_createConsumer() | producerpause consumerId="%s"', consumer.id);
 			this._notification(consumerPeer.socket, 'consumerPaused', { consumerId: consumer.id });
 		});
 
 		consumer.on('producerresume', () =>
 		{
+			logger.info('_createConsumer() | producerresume consumerId="%s"', consumer.id);
 			this._notification(consumerPeer.socket, 'consumerResumed', { consumerId: consumer.id });
 		});
 
@@ -1485,8 +1433,9 @@ class Room extends EventEmitter
 		// 	this._notification(consumerPeer.socket, 'consumerScore', { consumerId: consumer.id, score });
 		// });
 
-		// consumer.on('layerschange', (layers) =>
-		// {
+		consumer.on('layerschange', (layers) =>
+		{
+			logger.info('_createConsumer() | layerschange consumerId="%s"', consumer.id);
 		// 	this._notification(
 		// 		consumerPeer.socket,
 		// 		'consumerLayersChanged',
@@ -1496,7 +1445,7 @@ class Room extends EventEmitter
 		// 			temporalLayer : layers ? layers.temporalLayer : null
 		// 		}
 		// 	);
-		// });
+		});
 
 		// Send a request to the remote Peer with Consumer parameters.
 		try
@@ -1535,25 +1484,6 @@ class Room extends EventEmitter
 		}
 	}
 
-	_hasPermission(peer, permission)
-	{
-		const hasPermission = peer.roles.some((role) =>
-			roomPermissions[permission].includes(role)
-		);
-
-		if (hasPermission)
-			return true;
-
-		// Allow if config is set, and no one is present
-		if (
-			roomAllowWhenRoleMissing.includes(permission) &&
-			this._getPeersWithPermission(permission).length === 0
-		)
-			return true;
-
-		return false;
-	}
-
 	/**
 	 * Helper to get the list of joined peers.
 	 */
@@ -1561,19 +1491,6 @@ class Room extends EventEmitter
 	{
 		return Object.values(this._peers)
 			.filter((peer) => peer.joined && peer !== excludePeer);
-	}
-
-	_getPeersWithPermission(permission = null, excludePeer = undefined, joined = true)
-	{
-		return Object.values(this._peers)
-			.filter(
-				(peer) =>
-					peer.joined === joined &&
-					peer !== excludePeer &&
-					peer.roles.some(
-						(role) => roomPermissions[permission].includes(role)
-					)
-			);
 	}
 
 	_timeoutCallback(callback)
