@@ -1199,6 +1199,45 @@ class Room extends EventEmitter
 				break;
 			}
 
+			case 'clientBug': {
+				let output = "";
+				output += `\n\n\nCLIENT_BUG roomId=${this.id} peerId=${peer.id} name=${peer.displayName} routerId=${peer.routerId}`;
+
+				const peers = this._getJoinedPeers();
+				for (let peer of peers) {
+					output += "\n\n>>>Peer " + peer.id + "\n";
+
+					for (const [producerId, producer] of peer.producers.entries()) {
+						output += `\nProducer id=${producerId} kind=${producer.kind} paused=${producer.paused} closed=${producer.closed}`;
+						output += "\nScore: " + JSON.stringify(producer.score);
+						const stats = await producer.getStats();
+						output += "\nStats: " + JSON.stringify(stats);
+						output += "\n";
+					}
+
+					for (const [consumerId, consumer] of peer.consumers.entries()) {
+						output += `\nConsumer id=${consumerId} kind=${consumer.kind} paused=${consumer.paused} closed=${consumer.closed}`;
+						output += "\nScore: " + JSON.stringify(consumer.score);
+						const stats = await consumer.getStats();
+						output += "\nStats: " + JSON.stringify(stats);
+						output += "\n";
+					}
+
+					output += "\n>>>EndPeer " + peer.id + "\n\n";
+				}
+
+				output += "\n\n\n";
+
+				console.log(output);
+
+				cb(null, {
+					output,
+				});
+
+
+				break;
+			}
+
 			default:
 			{
 				logger.error('unknown request.method "%s"', request.method);
