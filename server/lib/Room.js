@@ -81,32 +81,19 @@ class Room extends EventEmitter
 
 		const mediasoupRouters = new Map();
 
-		let firstRouter = null;
-
-		for (const worker of shuffledWorkers)
-		{
+		for (const worker of shuffledWorkers) {
 			const router = await worker.createRouter({ mediaCodecs });
-
-			if (!firstRouter)
-				firstRouter = router;
-
 			mediasoupRouters.set(router.id, router);
 		}
 
-		// Create a mediasoup AudioLevelObserver on first router
-		const audioLevelObserver = await firstRouter.createAudioLevelObserver(
-			{
-				maxEntries : 8,
-				threshold  : -80,
-				interval   : 800
-			});
-
-		firstRouter = null;
 		shuffledWorkers = null;
 
-		const room = new Room({ roomId, mediasoupRouters, audioLevelObserver });
-		console.log("create room", roomId);
+		const room = new Room({
+			roomId,
+			mediasoupRouters,
+		});
 
+		console.log("create room", roomId);
 
 		room.on("close", () => {
 			console.log("room close", roomId);
@@ -120,7 +107,7 @@ class Room extends EventEmitter
 		return room;
 	}
 
-	constructor({ roomId, mediasoupRouters, audioLevelObserver })
+	constructor({ roomId, mediasoupRouters })
 	{
 		logger.info('constructor() [roomId:"%s"]', roomId);
 
@@ -172,15 +159,6 @@ class Room extends EventEmitter
 		// @type {Map<String, Object>}
 		this._broadcasters = new Map();
 
-		// Map of broadcasters indexed by id. Each Object has:
-		// - {String} id
-		// - {Object} data
-		//   - {String} producerId
-		// 	 - {String} mainRoom
-		//   - {String[]} roomIds
-		// @type {Map<String, Object>}
-		this._multiRoomProducers = new Map();
-
 		this._selfDestructTimeout = null;
 
 		// Array of mediasoup Router instances.
@@ -193,14 +171,7 @@ class Room extends EventEmitter
 
 		this._currentRouter = this._routerIterator.next().value;
 
-		// mediasoup AudioLevelObserver.
-		this._audioLevelObserver = audioLevelObserver;
-
-		// Current active speaker.
-		this._currentActiveSpeaker = null;
-
 		this._handleLobby();
-		this._handleAudioLevelObserver();
 	}
 
 	async getRouterRtpCapabilities() {
@@ -519,13 +490,6 @@ class Room extends EventEmitter
 				}).catch(() => {});
 		}
 
-		// Add into the audioLevelObserver.
-		// if (producer.kind === 'audio')
-		// {
-		// 	this._audioLevelObserver.addProducer({ producerId: producer.id })
-		// 		.catch(() => {});
-		// }
-
 		return { id: producer.id };
 	}
 
@@ -579,8 +543,6 @@ class Room extends EventEmitter
 		this._mediasoupRouters.clear();
 
 		this._pipeUberProducerCache = null;
-
-		this._audioLevelObserver = null;
 
 		// Emit 'close' event.
 		this.emit('close');
@@ -740,36 +702,6 @@ class Room extends EventEmitter
 
 	_handleAudioLevelObserver()
 	{
-		// Set audioLevelObserver events.
-		this._audioLevelObserver.on('volumes', (volumes) =>
-		{
-			// const { producer, volume } = volumes[0];
-			//
-			// // Notify all Peers.
-			// for (const peer of this._getJoinedPeers())
-			// {
-			// 	this._notification(
-			// 		peer.socket,
-			// 		'activeSpeaker',
-			// 		{
-			// 			peerId : producer.appData.peerId,
-			// 			volume : volume
-			// 		});
-			// }
-		});
-
-		this._audioLevelObserver.on('silence', () =>
-		{
-			// Notify all Peers.
-			// for (const peer of this._getJoinedPeers())
-			// {
-			// 	this._notification(
-			// 		peer.socket,
-			// 		'activeSpeaker',
-			// 		{ peerId: null }
-			// 	);
-			// }
-		});
 	}
 
 	logStatus()
@@ -1359,13 +1291,6 @@ class Room extends EventEmitter
 
 						await room.createConsumersForUberProducer(producer.id);
 					}
-				}
-
-				// Add into the audioLevelObserver.
-				if (kind === 'audio')
-				{
-					this._audioLevelObserver.addProducer({ producerId: producer.id })
-						.catch(() => {});
 				}
 
 				break;
