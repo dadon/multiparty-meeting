@@ -1765,10 +1765,10 @@ class Room extends EventEmitter
 		// }
 
 		if (worker.realPeers && worker.realPeers.length) {
-			let lastN = 8;
+			// let lastN = 8;
 			let peerNum = worker.realPeers.length;
-			if (lastN > peerNum) lastN = peerNum;
-			currentLoad = (lastN + peerNum) * (peerNum - 1);
+			// if (lastN > peerNum) lastN = peerNum;
+			currentLoad = (peerNum + peerNum) * (peerNum - 1);
 		}
 
 		return currentLoad;
