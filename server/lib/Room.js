@@ -45,6 +45,7 @@ const roomPermissions =
 const roomAllowWhenRoleMissing = config.allowWhenRoleMissing || [];
 
 const ROUTER_SCALE_SIZE = config.routerScaleSize || 40;
+const MAX_CONSUMERS_PER_WORKER = 400;
 
 class Room extends EventEmitter
 {
@@ -61,21 +62,17 @@ class Room extends EventEmitter
 	{
 		logger.info('create() [roomId:"%s"]', roomId);
 
-		// Shuffle workers to get random cores
-		let shuffledWorkers = mediasoupWorkers.sort(() => Math.random() - 0.5);
-
 		// Router media codecs.
 		const mediaCodecs = config.mediasoup.router.mediaCodecs;
 
 		const mediasoupRouters = new Map();
 
-		for (const worker of shuffledWorkers) {
+		for (const worker of mediasoupWorkers) {
 			const router = await worker.createRouter({ mediaCodecs });
+			router.workerLink = worker;
 			mediasoupRouters.set(router.id, router);
 			logger.info('[roomId:%s] create router %s', roomId, router.id);
 		}
-
-		shuffledWorkers = null;
 
 		const room = new Room({
 			roomId,
@@ -99,6 +96,7 @@ class Room extends EventEmitter
 		logger.info('constructor() [roomId:"%s"]', roomId);
 
 		super();
+
 		this.setMaxListeners(Infinity);
 
 		this._uuid = uuidv4();
@@ -137,10 +135,8 @@ class Room extends EventEmitter
 
 		this._pipeUberProducerCache = {};
 
-		// The router we are currently putting peers in
-		this._routerIterator = this._mediasoupRouters.values();
-
-		this._currentRouter = this._routerIterator.next().value;
+		const newRouterId = this._getLeastLoadedRouter();
+		this._currentRouter = this._mediasoupRouters.get(newRouterId)
 	}
 
 	async getRouterRtpCapabilities() {
@@ -1416,6 +1412,8 @@ class Room extends EventEmitter
 					paused          : true,//producer.kind === 'video'
 				});
 
+			this._registerConsumerOnWorker(router, consumer.id);
+
 			let priority = 150;
 
 			if (producer.kind === 'audio') {
@@ -1444,6 +1442,7 @@ class Room extends EventEmitter
 			logger.info('_createConsumer() | transportclose consumerId="%s"', consumer.id);
 			// Remove from its map.
 			consumerPeer.removeConsumer(consumer.id);
+			this._deleteConsumerFromWorker(router, consumer.id);
 		});
 
 		consumer.on('producerclose', () =>
@@ -1451,6 +1450,7 @@ class Room extends EventEmitter
 			logger.info('_createConsumer() | producerclose consumerId="%s"', consumer.id);
 			// Remove from its map.
 			consumerPeer.removeConsumer(consumer.id);
+			this._deleteConsumerFromWorker(router, consumer.id);
 
 			this._notification(consumerPeer.socket, 'consumerClosed', { consumerId: consumer.id });
 		});
@@ -1624,19 +1624,17 @@ class Room extends EventEmitter
 		}
 	}
 
-	async _pipeProducersToNewRouter()
-	{
+	async _pipeProducersToNewRouter() {
 		console.log("_pipeProducersToNewRouter");
+
 		const peersToPipe =
 			Object.values(this._peers)
 				.filter((peer) => peer.routerId !== this._currentRouter.id);
 
-		for (const peer of peersToPipe)
-		{
+		for (const peer of peersToPipe) {
 			const srcRouter = this._mediasoupRouters.get(peer.routerId);
 
-			for (const producerId of peer.producers.keys())
-			{
+			for (const producerId of peer.producers.keys()) {
 				await srcRouter.pipeToRouter({
 					producerId,
 					router : this._currentRouter
@@ -1664,37 +1662,28 @@ class Room extends EventEmitter
 		}
 	}
 
-	async _getRouterId()
-	{
-		if (this._currentRouter)
-		{
-			const routerLoad =
-				Object.values(this._peers)
-					.filter((peer) => peer.routerId === this._currentRouter.id).length;
+	async _getRouterId() {
+		if (!this._currentRouter) {
+			throw new Error(("_getRouterId Error - _currentRouter is not defined"));
+		}
 
-			if (routerLoad >= ROUTER_SCALE_SIZE)
-			{
-				this._currentRouter = this._routerIterator.next().value;
+		const routerLoad = this._getRouterLoad(this._currentRouter);
 
-				if (this._currentRouter)
-				{
-					await this._pipeProducersToNewRouter();
+		if (routerLoad >= MAX_CONSUMERS_PER_WORKER) {
+			const currentRouterId = this._currentRouter.id;
+			const newRouterId = this._getLeastLoadedRouter();
 
-					return this._currentRouter.id;
-				}
-			}
-			else
-			{
-				return this._currentRouter.id;
+			if (currentRouterId !== newRouterId) {
+				this._currentRouter = this._mediasoupRouters.get(newRouterId);
+				await this._pipeProducersToNewRouter();
 			}
 		}
 
-		return this._getLeastLoadedRouter();
+		return this._currentRouter.id;
 	}
 
 	// Returns an array of router ids we need to pipe to
-	_getRoutersToPipeTo(originRouterId)
-	{
+	_getRoutersToPipeTo(originRouterId) {
 		return Object.values(this._peers)
 			.map((peer) => peer.routerId)
 			.filter((routerId, index, self) =>
@@ -1702,24 +1691,59 @@ class Room extends EventEmitter
 			);
 	}
 
-	_getLeastLoadedRouter()
-	{
+	_getLeastLoadedRouter() {
 		let load = Infinity;
 		let id;
 
-		for (const routerId of this._mediasoupRouters.keys())
-		{
-			const routerLoad =
-				Object.values(this._peers).filter((peer) => peer.routerId === routerId).length;
+		for (const routerId of this._mediasoupRouters.keys()) {
+			const router = this._mediasoupRouters.get(routerId);
 
-			if (routerLoad < load)
-			{
+			let currentLoad = this._getRouterLoad(router);
+
+			if (currentLoad < load) {
 				id = routerId;
-				load = routerLoad;
+				load = currentLoad;
 			}
 		}
 
 		return id;
+	}
+
+	_registerConsumerOnWorker(router, consumerId) {
+		const worker = router.workerLink;
+
+		if (worker.realConsumers === undefined) {
+			worker.realConsumers = [];
+		}
+
+		if (!worker.realConsumers.includes(consumerId)) {
+			worker.realConsumers.push(consumerId);
+		}
+	}
+
+	_deleteConsumerFromWorker(router, consumerId) {
+		const worker = router.workerLink;
+
+		if (worker.realConsumers === undefined) {
+			worker.realConsumers = [];
+		}
+
+		let index = worker.realConsumers.indexOf(consumerId);
+		if (index !== -1) {
+			worker.realConsumers.splice(index, 1);
+		}
+	}
+
+	_getRouterLoad(router) {
+		const worker = router.workerLink;
+
+		let currentLoad = 0;
+
+		if (worker.realConsumers && worker.realConsumers.length) {
+			currentLoad = worker.realConsumers.length;
+		}
+
+		return currentLoad;
 	}
 }
 

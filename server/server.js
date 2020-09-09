@@ -302,8 +302,17 @@ app.get("/rooms-stat/:key", (req, res) => {
 		result.push(room.dump());
 	}
 
+	const workers = [];
+	for (let worker of mediasoupWorkers) {
+		workers.push({
+			id: worker.pid,
+			consumers: worker.realConsumers.length,
+		});
+	}
+
 	res.json({
 		rooms: result,
+		workers: workers,
 	})
 });
 
