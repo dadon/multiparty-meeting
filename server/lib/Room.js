@@ -1205,7 +1205,10 @@ class Room extends EventEmitter
 
 				const peers = this._getJoinedPeers();
 				for (let peer of peers) {
-					output += "\n\n>>>Peer " + peer.id + "\n";
+
+					const router = this._mediasoupRouters.get(peer.routerId);
+					const worker = router.workerLink;
+					output += `\n\n>>>Peer ${peer.id} worker=${worker.pid} \n`;
 
 					for (const [producerId, producer] of peer.producers.entries()) {
 						output += `\nProducer id=${producerId} kind=${producer.kind} paused=${producer.paused} closed=${producer.closed}`;
@@ -1769,7 +1772,7 @@ class Room extends EventEmitter
 			let peerNum = worker.realPeers.length;
 			// if (lastN > peerNum) lastN = peerNum;
 			// currentLoad = (peerNum + peerNum) * (peerNum - 1);
-			currentLoad = peerNum * 80;
+			currentLoad = peerNum * 50;
 		}
 
 		return currentLoad;
