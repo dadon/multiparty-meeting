@@ -306,6 +306,7 @@ app.get("/rooms-stat/:key", (req, res) => {
 	for (let worker of mediasoupWorkers) {
 		workers.push({
 			id: worker.pid,
+			peers: worker.realPeers.length,
 			consumers: worker.realConsumers.length,
 		});
 	}
@@ -803,6 +804,7 @@ async function runMediasoupWorkers()
 		});
 
 		worker.realConsumers = [];
+		worker.realPeers = [];
 
 		mediasoupWorkers.push(worker);
 	}

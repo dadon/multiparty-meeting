@@ -589,6 +589,8 @@ class Room extends EventEmitter
 
 			// Assign routerId
 			peer.routerId = await this._getRouterId();
+
+			this._registerPeerOnWorker(this._mediasoupRouters.get(peer.routerId), peer.id);
 			logger.info('_peerJoining() assign router [roomId:%s peerId:%s routerId:%s]', this._roomId, peer.id, peer.routerId);
 
 			this._handlePeer(peer);
@@ -651,6 +653,8 @@ class Room extends EventEmitter
 		this._lastN = this._lastN.filter((id) => id !== peer.id);
 
 		delete this._peers[peer.id];
+
+		this._deletePeerFromWorker(this._mediasoupRouters.get(peer.routerId), peer.id);
 
 		// If this is the last Peer in the room and
 		// lobby is empty, close the room after a while.
@@ -1734,13 +1738,37 @@ class Room extends EventEmitter
 		}
 	}
 
+	_registerPeerOnWorker(router, peerId) {
+		const worker = router.workerLink;
+
+		if (!worker.realPeers.includes(peerId)) {
+			worker.realPeers.push(peerId);
+		}
+	}
+
+	_deletePeerFromWorker(router, peerId) {
+		const worker = router.workerLink;
+
+		let index = worker.realPeers.indexOf(peerId);
+		if (index !== -1) {
+			worker.realPeers.splice(index, 1);
+		}
+	}
+
 	_getRouterLoad(router) {
 		const worker = router.workerLink;
 
 		let currentLoad = 0;
 
-		if (worker.realConsumers && worker.realConsumers.length) {
-			currentLoad = worker.realConsumers.length;
+		// if (worker.realConsumers && worker.realConsumers.length) {
+		// 	currentLoad = worker.realConsumers.length;
+		// }
+
+		if (worker.realPeers && worker.realPeers.length) {
+			let lastN = 8;
+			let peerNum = worker.realPeers.length;
+			if (lastN > peerNum) lastN = peerNum;
+			currentLoad = (lastN + peerNum) * (peerNum - 1);
 		}
 
 		return currentLoad;
