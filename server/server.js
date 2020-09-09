@@ -729,24 +729,14 @@ async function runWebSocketServer()
 
 		queue.push(async () =>
 		{
-			const { token } = socket.handshake.session;
-
 			const room = await getOrCreateRoom({ roomId });
 
 			let peer = peers.get(peerId);
 			let returning = false;
 
-			if (peer && !token)
-			{ // Don't allow hijacking sessions
-				socket.disconnect(true);
-
-				return;
-			}
-			else if (token && room.verifyPeer({ id: peerId, token }))
-			{ // Returning user, remove if old peer exists
-				if (peer)
-					peer.close();
-
+			// Returning user, remove if old peer exists
+			if (peer) {
+				peer.close();
 				returning = true;
 			}
 
@@ -754,37 +744,11 @@ async function runWebSocketServer()
 
 			peers.set(peerId, peer);
 
-			peer.on('close', () =>
-			{
+			peer.on('close', () => {
 				peers.delete(peerId);
 
 				statusLog();
 			});
-
-			if (
-				Boolean(socket.handshake.session.passport) &&
-				Boolean(socket.handshake.session.passport.user)
-			)
-			{
-				const {
-					id,
-					displayName,
-					picture,
-					email,
-					_userinfo
-				} = socket.handshake.session.passport.user;
-
-				peer.authId = id;
-				peer.displayName = displayName;
-				peer.picture = picture;
-				peer.email = email;
-				peer.authenticated = true;
-
-				if (typeof config.userMapping === 'function')
-				{
-					await config.userMapping({ peer, roomId, userinfo: _userinfo });
-				}
-			}
 
 			room.handlePeer({ peer, returning });
 
@@ -828,6 +792,8 @@ async function runMediasoupWorkers()
 
 			setTimeout(() => process.exit(1), 2000);
 		});
+
+		worker.realConsumers = [];
 
 		mediasoupWorkers.push(worker);
 	}
