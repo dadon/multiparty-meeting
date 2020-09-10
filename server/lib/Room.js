@@ -1767,13 +1767,13 @@ class Room extends EventEmitter
 		// 	currentLoad = worker.realConsumers.length;
 		// }
 
-		if (worker.realPeers && worker.realPeers.length) {
+		// if (worker.realPeers && worker.realPeers.length) {
 			// let lastN = 8;
-			let peerNum = worker.realPeers.length;
+			// let peerNum = worker.realPeers.length;
 			// if (lastN > peerNum) lastN = peerNum;
 			// currentLoad = (peerNum + peerNum) * (peerNum - 1);
-			currentLoad = peerNum * 25;
-		}
+			// currentLoad = peerNum * 25;
+		// }
 
 		return currentLoad;
 	}
