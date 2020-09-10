@@ -45,7 +45,7 @@ const roomPermissions =
 const roomAllowWhenRoleMissing = config.allowWhenRoleMissing || [];
 
 const ROUTER_SCALE_SIZE = config.routerScaleSize || 40;
-const MAX_CONSUMERS_PER_WORKER = 500;
+const MAX_CONSUMERS_PER_WORKER = 600;
 
 class Room extends EventEmitter
 {
@@ -1761,21 +1761,22 @@ class Room extends EventEmitter
 	_getRouterLoad(router) {
 		const worker = router.workerLink;
 
-		let currentLoad = 0;
+		const result = {
+			consumers: 0,
+			peers: 0,
+		};
 
-		// if (worker.realConsumers && worker.realConsumers.length) {
-		// 	currentLoad = worker.realConsumers.length;
-		// }
+		if (worker.realConsumers && worker.realConsumers.length) {
+			result.consumers = worker.realConsumers.length;
+		}
 
-		// if (worker.realPeers && worker.realPeers.length) {
-			// let lastN = 8;
-			// let peerNum = worker.realPeers.length;
-			// if (lastN > peerNum) lastN = peerNum;
-			// currentLoad = (peerNum + peerNum) * (peerNum - 1);
-			// currentLoad = peerNum * 25;
-		// }
+		if (worker.realPeers && worker.realPeers.length) {
+			result.peers = worker.realPeers.length;
+		}
 
-		return currentLoad;
+		let load = Math.max(result.consumers, result.peers * 50);
+
+		return load;
 	}
 }
 
