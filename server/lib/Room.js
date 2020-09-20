@@ -196,14 +196,11 @@ class Room extends EventEmitter
 			broadcaster.routerId = await this._getRouterId();
 		}
 
-		const router = this._mediasoupRouters.get(broadcaster.routerId);
-
 		// Store the Broadcaster into the map.
 		this._broadcasters.set(broadcaster.id, broadcaster);
 
 		// Notify the new Broadcaster to all Peers.
-		for (const otherPeer of this._getJoinedPeers())
-		{
+		for (const otherPeer of this._getJoinedPeers()) {
 			this._notification(
 				otherPeer.socket,
 				'newPeer',
@@ -215,49 +212,7 @@ class Room extends EventEmitter
 			);
 		}
 
-		// Reply with the list of Peers and their Producers.
-		const peerInfos = [];
-		const joinedPeers = this._getJoinedPeers();
-
-		// Just fill the list of Peers if the Broadcaster provided its rtpCapabilities.
-		if (rtpCapabilities)
-		{
-			for (const joinedPeer of joinedPeers)
-			{
-				const peerInfo =
-					{
-						id          : joinedPeer.id,
-						displayName : joinedPeer.data.displayName,
-						device      : joinedPeer.data.device,
-						producers   : []
-					};
-
-				for (const producer of joinedPeer.data.producers.values())
-				{
-					// Ignore Producers that the Broadcaster cannot consume.
-					if (
-						!router.canConsume(
-							{
-								producerId : producer.id,
-								rtpCapabilities
-							})
-					)
-					{
-						continue;
-					}
-
-					peerInfo.producers.push(
-						{
-							id   : producer.id,
-							kind : producer.kind
-						});
-				}
-
-				peerInfos.push(peerInfo);
-			}
-		}
-
-		return { peers: peerInfos };
+		return {};
 	}
 
 	/**
@@ -447,6 +402,7 @@ class Room extends EventEmitter
 		for (const peer of this._getJoinedPeers())
 		{
 			console.log(broadcaster.id, "create consumer for ", peer)
+
 			this._createConsumer(
 				{
 					consumerPeer : peer,
