@@ -361,7 +361,8 @@ class Peer extends EventEmitter
 
 	addConsumer(id, consumer)
 	{
-		this.consumers.set(id, consumer);
+		console.log("addConsumer", id, this._id);
+		this._consumers.set(id, consumer);
 	}
 
 	getConsumer(id)

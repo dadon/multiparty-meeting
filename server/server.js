@@ -85,6 +85,7 @@ const tls =
 	honorCipherOrder : true
 };
 
+const KEY = "quboXvvxcW2r3tdkPXD0Y";
 const app = express();
 
 app.use(helmet.hsts());
@@ -293,7 +294,7 @@ app.post(
 
 app.get("/rooms-stat/:key", (req, res) => {
 	const key = req.params.key;
-	if (key !== "quboXvvxcW2r3tdkPXD0Y") {
+	if (key !== KEY) {
 		res.status(404);
 		return;
 	}
@@ -316,6 +317,26 @@ app.get("/rooms-stat/:key", (req, res) => {
 		workers: workers,
 	})
 });
+
+app.post(
+	'/rooms/:roomId/consumers', async (req, res, next) =>
+	{
+		console.log("sssss");
+		const {
+			key,
+			consumersState,
+		} = req.body;
+
+		if (key !== KEY) {
+			console.log("no kkkk");
+			res.status(404);
+			return;
+		}
+
+		req.room.setConsumersState(consumersState);
+
+		res.status(200).json({});
+	});
 
 let mainListener;
 let io;
