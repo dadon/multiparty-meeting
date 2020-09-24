@@ -385,7 +385,7 @@ class Room extends EventEmitter {
             await transport.produce({ kind, rtpParameters });
 
         // const pipeRouters = this._getRoutersToPipeTo(broadcaster.routerId);
-        await sleep(100);
+        await sleep(500);
 
         console.log("createBroadcasterProducer", producer.id, broadcaster.routerId);
 
