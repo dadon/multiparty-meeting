@@ -380,10 +380,10 @@ class Room extends EventEmitter {
         const producer =
             await transport.produce({ kind, rtpParameters });
 
-        const pipeRouters = this._getRoutersToPipeTo(broadcaster.routerId);
+        // const pipeRouters = this._getRoutersToPipeTo(broadcaster.routerId);
 
         for (const [routerId, destinationRouter] of this._mediasoupRouters) {
-            if (pipeRouters.includes(routerId)) {
+            if (routerId !== broadcaster.routerId) {
                 await router.pipeToRouter({
                     producerId: producer.id,
                     router: destinationRouter,
