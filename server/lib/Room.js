@@ -8,6 +8,10 @@ const jwt = require("jsonwebtoken");
 const userRoles = require("../userRoles");
 
 
+function sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
+}
+
 const permissions = require("../permissions"), {
     CHANGE_ROOM_LOCK,
     PROMOTE_PEER,
@@ -381,6 +385,9 @@ class Room extends EventEmitter {
             await transport.produce({ kind, rtpParameters });
 
         // const pipeRouters = this._getRoutersToPipeTo(broadcaster.routerId);
+        await sleep(100);
+
+        console.log("createBroadcasterProducer", producer.id, broadcaster.routerId);
 
         for (const [routerId, destinationRouter] of this._mediasoupRouters) {
             if (routerId !== broadcaster.routerId) {
@@ -412,7 +419,7 @@ class Room extends EventEmitter {
         for (const peer of this._getJoinedPeers()) {
             console.log(broadcaster.id, "create consumer for ");
 
-            this._createConsumer(
+            await this._createConsumer(
                 {
                     consumerPeer: peer,
                     producerPeer: broadcaster,
