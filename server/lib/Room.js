@@ -380,6 +380,17 @@ class Room extends EventEmitter {
         const producer =
             await transport.produce({ kind, rtpParameters });
 
+        const pipeRouters = this._getRoutersToPipeTo(broadcaster.routerId);
+
+        for (const [routerId, destinationRouter] of this._mediasoupRouters) {
+            if (pipeRouters.includes(routerId)) {
+                await router.pipeToRouter({
+                    producerId: producer.id,
+                    router: destinationRouter,
+                });
+            }
+        }
+
         // Store it.
         broadcaster.data.producers.set(producer.id, producer);
 
@@ -391,11 +402,11 @@ class Room extends EventEmitter {
         // 		producer.id, score);
         // });
 
-        producer.on("videoorientationchange", (videoOrientation) => {
-            logger.debug(
-                "broadcaster producer \"videoorientationchange\" event [producerId:%s, videoOrientation:%o]",
-                producer.id, videoOrientation);
-        });
+        // producer.on("videoorientationchange", (videoOrientation) => {
+        //     logger.debug(
+        //         "broadcaster producer \"videoorientationchange\" event [producerId:%s, videoOrientation:%o]",
+        //         producer.id, videoOrientation);
+        // });
 
         // Optimization: Create a server-side Consumer for each Peer.
         for (const peer of this._getJoinedPeers()) {
@@ -1405,9 +1416,9 @@ class Room extends EventEmitter {
 
             // Now that we got the positive response from the remote Peer and, if
             // video, resume the Consumer to ask for an efficient key frame.
-            // if (broadcast) {
-            //     await consumer.resume();
-            // }
+            if (broadcast) {
+                await consumer.resume();
+            }
 
             // this._notification(
             // 	consumerPeer.socket,
