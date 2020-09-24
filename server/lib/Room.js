@@ -402,7 +402,7 @@ class Room extends EventEmitter {
         for (const peer of this._getJoinedPeers()) {
             console.log("create consumer for broadcaster", broadcaster.id);
 
-            await this._createConsumer(
+            this._createConsumer(
                 {
                     consumerPeer: peer,
                     producerPeer: broadcaster,
