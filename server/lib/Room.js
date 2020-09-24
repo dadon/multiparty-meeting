@@ -1,3 +1,5 @@
+
+
 const EventEmitter = require("events").EventEmitter;
 const AwaitQueue = require("awaitqueue");
 const axios = require("axios");
@@ -384,10 +386,9 @@ class Room extends EventEmitter {
         const producer =
             await transport.produce({ kind, rtpParameters });
 
-        // const pipeRouters = this._getRoutersToPipeTo(broadcaster.routerId);
-        await sleep(500);
+        broadcaster.data.producers.set(producer.id, producer);
 
-        console.log("createBroadcasterProducer", producer.id, broadcaster.routerId);
+        const router = this._mediasoupRouters.get(broadcaster.routerId);
 
         for (const [routerId, destinationRouter] of this._mediasoupRouters) {
             if (routerId !== broadcaster.routerId) {
@@ -398,26 +399,8 @@ class Room extends EventEmitter {
             }
         }
 
-        // Store it.
-        broadcaster.data.producers.set(producer.id, producer);
-
-        // Set Producer events.
-        // producer.on('score', (score) =>
-        // {
-        // 	logger.debug(
-        // 		'broadcaster producer "score" event [producerId:%s, score:%o]',
-        // 		producer.id, score);
-        // });
-
-        // producer.on("videoorientationchange", (videoOrientation) => {
-        //     logger.debug(
-        //         "broadcaster producer \"videoorientationchange\" event [producerId:%s, videoOrientation:%o]",
-        //         producer.id, videoOrientation);
-        // });
-
-        // Optimization: Create a server-side Consumer for each Peer.
         for (const peer of this._getJoinedPeers()) {
-            console.log(broadcaster.id, "create consumer for ");
+            console.log("create consumer for broadcaster", broadcaster.id);
 
             await this._createConsumer(
                 {
