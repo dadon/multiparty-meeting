@@ -407,7 +407,7 @@ class Room extends EventEmitter
 				{
 					consumerPeer : peer,
 					producerPeer : broadcaster,
-					consumerPriority: 100,
+					consumerPriority: 255,
 					producer,
 				}).catch(() => {});
 		}
@@ -689,7 +689,7 @@ class Room extends EventEmitter
 							{
 								consumerPeer : peer,
 								producerPeer : broadcaster,
-								consumerPriority: 100,
+								consumerPriority: 255,
 								producer,
 							}).catch(() => {});
 					}
