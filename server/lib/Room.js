@@ -1663,7 +1663,7 @@ class Room extends EventEmitter {
             for (let consumer of peer.consumers.values()) {
                 const consumerPeerId = consumer.userId;
                 let active = Boolean(data[consumerPeerId]);
-                console.log("consumer",consumerPeerId, active);
+                console.log("consumer", consumerPeerId, active);
 
                 if (active) {
                     if (consumer.paused) {
