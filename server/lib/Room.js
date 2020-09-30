@@ -110,10 +110,14 @@ class Room extends EventEmitter {
         this._lastN = [];
 
         this._peers = {};
+        this._peerVolume = {};
 
         this.consumersState = {};
 
         this._setConsumersState = this._setConsumersState.bind(this);
+        this.onVolumes = this.onVolumes.bind(this);
+        this.onSilence = this.onSilence.bind(this);
+        this.registerObserver = this.registerObserver.bind(this);
 
         // Map of broadcasters indexed by id. Each Object has:
         // - {String} id
@@ -138,6 +142,41 @@ class Room extends EventEmitter {
 
         const newRouterId = this._getLeastLoadedRouter();
         this._currentRouter = this._mediasoupRouters.get(newRouterId);
+
+        this.registerObserver();
+    }
+
+    async registerObserver() {
+        this.audioLevelObserver = await this._currentRouter.createAudioLevelObserver(
+            {
+                maxEntries: 50,
+                threshold: -60,
+                interval: 800,
+            })
+        this.audioLevelObserver.on('volumes', this.onVolumes);
+        this.audioLevelObserver.on('silence', this.onSilence);
+    }
+
+    onVolumes(volumes) {
+        for (let el of volumes) {
+            const { producer, volume } = el;
+            const peerId = producer.appData.peerId;
+            const volumeNorm = Math.pow(10, volume / 20)
+            console.log("onVolume", peerId, volumeNorm.toFixed(4), volume);
+            this._peerVolume[peerId] = volume;
+        }
+
+
+        this._queue.push(this._setConsumersState);
+    }
+
+    onSilence() {
+        console.log("onSilence");
+        for (const peer of this._getJoinedPeers()) {
+            this._peerVolume[peer.id] = -100;
+        }
+
+        this._queue.push(this._setConsumersState);
     }
 
     async getRouterRtpCapabilities() {
@@ -821,6 +860,11 @@ class Room extends EventEmitter {
 
                 cb(null, { id: producer.id });
 
+                if (kind === 'audio') {
+                    this.audioLevelObserver.addProducer({ producerId: producer.id })
+                        .catch(() => {});
+                }
+
                 // Optimization: Create a server-side Consumer for each Peer.
                 for (const otherPeer of this._getJoinedPeers(peer)) {
                     this._createConsumer({
@@ -856,6 +900,7 @@ class Room extends EventEmitter {
                         await room.createConsumersForUberProducer(producer.id);
                     }
                 }
+
 
                 break;
             }
@@ -1652,26 +1697,45 @@ class Room extends EventEmitter {
 
     async _setConsumersState() {
         const { consumersState } = this;
-        console.log("_setConsumersState", consumersState);
+        // console.log("_setConsumersState", consumersState);
         const peers = Object.values(this._peers);
 
         for (let peer of peers) {
+
             const data = consumersState[peer.id];
 
             console.log("peer", peer.id, data);
 
+            // iterate over consumers with video
+            // sort by current audio priority
+            // create spotlight
+
             for (let consumer of peer.consumers.values()) {
                 const consumerPeerId = consumer.userId;
-                let active = Boolean(data[consumerPeerId]);
-                console.log("consumer", consumerPeerId, active);
+                let active = Boolean(data[consumerPeerId][consumer.kind]);
+                console.log("consumer", consumerPeerId, consumer.kind, active);
+
+                // if active && video - check spotlight
+
+                if (active && consumer.kind === "audio") {
+                    const volume = this._peerVolume[peer.id];
+                    console.log("peer vol", volume, volume < -80);
+                    if (volume < -80) {
+                        active = false;
+                        console.log("pause inactive");
+                    }
+                }
+                // if active and audio - check if local mute
 
                 if (active) {
                     if (consumer.paused) {
-                        await consumer.resume();
+                        console.log("resume");
+                        consumer.resume();
                     }
                 } else {
                     if (!consumer.paused) {
-                        await consumer.pause();
+                        console.log("pause");
+                        consumer.pause();
                     }
                 }
             }
