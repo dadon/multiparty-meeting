@@ -151,7 +151,7 @@ class Room extends EventEmitter {
             {
                 maxEntries: 50,
                 threshold: -60,
-                interval: 800,
+                interval: 100,
             })
         this.audioLevelObserver.on('volumes', this.onVolumes);
         this.audioLevelObserver.on('silence', this.onSilence);
