@@ -116,8 +116,9 @@ class Room extends EventEmitter {
 
         this._setConsumersState = this._setConsumersState.bind(this);
         this.onVolumes = this.onVolumes.bind(this);
-        this.onSilence = this.onSilence.bind(this);
+        // this.onSilence = this.onSilence.bind(this);
         this.registerObserver = this.registerObserver.bind(this);
+        this.decreaseVolumeScore = this.decreaseVolumeScore.bind(this);
 
         // Map of broadcasters indexed by id. Each Object has:
         // - {String} id
@@ -144,6 +145,8 @@ class Room extends EventEmitter {
         this._currentRouter = this._mediasoupRouters.get(newRouterId);
 
         this.registerObserver();
+
+        this._decreaseVolumeScoreTimer = setInterval(this.decreaseVolumeScore, 1000);
     }
 
     async registerObserver() {
@@ -154,29 +157,49 @@ class Room extends EventEmitter {
                 interval: 100,
             })
         this.audioLevelObserver.on('volumes', this.onVolumes);
-        this.audioLevelObserver.on('silence', this.onSilence);
+        // this.audioLevelObserver.on('silence', this.onSilence);
     }
 
     onVolumes(volumes) {
+        let needUpdate = false;
+
         for (let el of volumes) {
             const { producer, volume } = el;
             const peerId = producer.appData.peerId;
             const volumeNorm = Math.pow(10, volume / 20)
             console.log("onVolume", peerId, volumeNorm.toFixed(4), volume);
-            this._peerVolume[peerId] = volume;
+            const oldScore = this._peerVolume[peerId];
+            this._peerVolume[peerId] = 15;
+
+            if (!oldScore) {
+                needUpdate = true;
+            }
         }
 
-
-        this._queue.push(this._setConsumersState);
+        if (needUpdate) {
+            this._queue.push(this._setConsumersState);
+        }
     }
 
-    onSilence() {
-        console.log("onSilence");
-        for (const peer of this._getJoinedPeers()) {
-            this._peerVolume[peer.id] = -100;
+    decreaseVolumeScore() {
+        let needUpdate = false;
+
+        for (let peerId in this._peerVolume) if (this._peerVolume.hasOwnProperty(peerId)) {
+            let oldScore = this._peerVolume[peerId];
+
+            if (oldScore) {
+                this._peerVolume[peerId] = oldScore - 1;
+                console.log("decrease score for peer", peerId, this._peerVolume[peerId]);
+            }
+
+            if (oldScore && !this._peerVolume[peerId]) {
+                needUpdate = true;
+            }
         }
 
-        this._queue.push(this._setConsumersState);
+        if (needUpdate) {
+            this._queue.push(this._setConsumersState);
+        }
     }
 
     async getRouterRtpCapabilities() {
@@ -455,6 +478,10 @@ class Room extends EventEmitter {
         if (this._selfDestructTimeout)
             clearTimeout(this._selfDestructTimeout);
 
+        if (this._decreaseVolumeScoreTimer) {
+            clearInterval(this._decreaseVolumeScoreTimer);
+        }
+
         this._selfDestructTimeout = null;
 
         // Close the peers.
@@ -477,6 +504,8 @@ class Room extends EventEmitter {
         this._mediasoupRouters.clear();
 
         this._pipeUberProducerCache = null;
+
+        this._audioLevelObserver = null;
 
         // Emit 'close' event.
         this.emit("close");
@@ -611,6 +640,8 @@ class Room extends EventEmitter {
         this._lastN = this._lastN.filter((id) => id !== peer.id);
 
         delete this._peers[peer.id];
+
+        delete this._peerVolume[peer.id];
 
         this._deletePeerFromWorker(this._mediasoupRouters.get(peer.routerId), peer.id);
 
@@ -1702,30 +1733,47 @@ class Room extends EventEmitter {
 
         for (let peer of peers) {
 
+            // console.log("peer", peer.id, data);
             const data = consumersState[peer.id];
 
-            // console.log("peer", peer.id, data);
+            let videoActivePeers = [];
+            for (let consumer of peer.consumers.values()) {
+                if (consumer.kind !== "video") continue;
 
-            // iterate over consumers with video
-            // sort by current audio priority
-            // create spotlight
+                const consumerPeerId = consumer.userId;
+                let active = Boolean(data[consumerPeerId][consumer.kind]);
+                if (active) {
+                    videoActivePeers.push({
+                        peerId: consumerPeerId,
+                        score: this._peerVolume[consumerPeerId] || 0
+                    });
+                }
+            }
+
+            videoActivePeers.sort((a, b) => b.score - a.score);
+            videoActivePeers = videoActivePeers.slice(0, 8).map(el => el.peerId);
 
             for (let consumer of peer.consumers.values()) {
                 const consumerPeerId = consumer.userId;
                 let active = Boolean(data[consumerPeerId][consumer.kind]);
                 // console.log("consumer", consumerPeerId, consumer.kind, active);
 
-                // if active && video - check spotlight
-
                 if (active && consumer.kind === "audio") {
-                    const volume = this._peerVolume[consumerPeerId];
-                    console.log("peer vol", volume, volume < -80);
-                    if (volume < -80) {
+                    const score = this._peerVolume[consumerPeerId];
+                    console.log("peer score", score);
+
+                    if (!score || score <= 0) {
                         active = false;
                         console.log(`pause inactive ${consumerPeerId} for ${peer.id}`);
                     }
                 }
-                // if active and audio - check if local mute
+
+                if (active && consumer.kind === "video") {
+                    if (!videoActivePeers.includes(consumerPeerId)) {
+                        active = false;
+                        console.log(`pause video in terms of lastN ${consumerPeerId} for ${peer.id}`);
+                    }
+                }
 
                 if (active) {
                     if (consumer.paused) {
