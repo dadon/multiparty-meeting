@@ -1704,7 +1704,7 @@ class Room extends EventEmitter {
 
             const data = consumersState[peer.id];
 
-            console.log("peer", peer.id, data);
+            // console.log("peer", peer.id, data);
 
             // iterate over consumers with video
             // sort by current audio priority
@@ -1713,28 +1713,28 @@ class Room extends EventEmitter {
             for (let consumer of peer.consumers.values()) {
                 const consumerPeerId = consumer.userId;
                 let active = Boolean(data[consumerPeerId][consumer.kind]);
-                console.log("consumer", consumerPeerId, consumer.kind, active);
+                // console.log("consumer", consumerPeerId, consumer.kind, active);
 
                 // if active && video - check spotlight
 
                 if (active && consumer.kind === "audio") {
-                    const volume = this._peerVolume[peer.id];
+                    const volume = this._peerVolume[consumerPeerId];
                     console.log("peer vol", volume, volume < -80);
                     if (volume < -80) {
                         active = false;
-                        console.log("pause inactive");
+                        console.log(`pause inactive ${consumerPeerId} for ${peer.id}`);
                     }
                 }
                 // if active and audio - check if local mute
 
                 if (active) {
                     if (consumer.paused) {
-                        console.log("resume");
+                        console.log(`resume ${consumerPeerId} for ${peer.id}`);
                         consumer.resume();
                     }
                 } else {
                     if (!consumer.paused) {
-                        console.log("pause");
+                        console.log(`pause ${consumerPeerId} for ${peer.id}`);
                         consumer.pause();
                     }
                 }
