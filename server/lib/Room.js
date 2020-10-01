@@ -6,6 +6,7 @@ const { SocketTimeoutError } = require("./errors");
 const { v4: uuidv4 } = require("uuid");
 const jwt = require("jsonwebtoken");
 const userRoles = require("../userRoles");
+const utils = require("./utils");
 
 
 const permissions = require("../permissions"), {
@@ -177,7 +178,7 @@ class Room extends EventEmitter {
         }
 
         if (needUpdate) {
-            this._queue.push(this._setConsumersState);
+            this._setConsumersState();
         }
     }
 
@@ -198,7 +199,7 @@ class Room extends EventEmitter {
         }
 
         if (needUpdate) {
-            this._queue.push(this._setConsumersState);
+            this._setConsumersState();
         }
     }
 
@@ -753,7 +754,7 @@ class Room extends EventEmitter {
                     "peer joined [peer: \"%s\", displayName: \"%s\", picture: \"%s\"]",
                     peer.id, displayName, picture);
 
-                this._queue.push(this._setConsumersState);
+                this._setConsumersState();
 
                 break;
             }
@@ -1722,17 +1723,17 @@ class Room extends EventEmitter {
     setConsumersState(consumersState) {
         console.log("consumersState", consumersState);
         this.consumersState = consumersState;
-
-        this._queue.push(this._setConsumersState);
+        this._setConsumersState();
     }
 
-    async _setConsumersState() {
-        const { consumersState } = this;
+    _setConsumersState() {
+        const consumersState = utils.copyObject(this.consumersState);
+
         // console.log("_setConsumersState", consumersState);
         const peers = Object.values(this._peers);
 
         for (let peer of peers) {
-
+            let needUpdateForPeer = false;
             // console.log("peer", peer.id, data);
             const data = consumersState[peer.id];
 
@@ -1764,6 +1765,7 @@ class Room extends EventEmitter {
 
                     if (!score || score <= 0) {
                         active = false;
+                        data[consumerPeerId][consumer.kind] = false;
                         console.log(`pause inactive ${consumerPeerId} for ${peer.id}`);
                     }
                 }
@@ -1771,6 +1773,7 @@ class Room extends EventEmitter {
                 if (active && consumer.kind === "video") {
                     if (!videoActivePeers.includes(consumerPeerId)) {
                         active = false;
+                        data[consumerPeerId][consumer.kind] = false;
                         console.log(`pause video in terms of lastN ${consumerPeerId} for ${peer.id}`);
                     }
                 }
@@ -1779,13 +1782,23 @@ class Room extends EventEmitter {
                     if (consumer.paused) {
                         console.log(`resume ${consumerPeerId} for ${peer.id}`);
                         consumer.resume();
+                        needUpdateForPeer = true;
                     }
                 } else {
                     if (!consumer.paused) {
                         console.log(`pause ${consumerPeerId} for ${peer.id}`);
                         consumer.pause();
+                        needUpdateForPeer = true;
                     }
                 }
+            }
+
+            if (needUpdateForPeer) {
+                this._notification(
+                    peer.socket,
+                    "updateConsumersState",
+                    data,
+                );
             }
         }
     }
