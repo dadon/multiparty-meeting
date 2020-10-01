@@ -698,22 +698,26 @@ class Room extends EventEmitter {
                 // Mark the new Peer as joined.
                 peer.joined = true;
 
+                const consumersPromises = [];
+
                 for (const joinedPeer of joinedPeers) {
                     // Create Consumers for existing Producers.
                     for (const producer of joinedPeer.producers.values()) {
-                        this._createConsumer(
+                        const promise = this._createConsumer(
                             {
                                 consumerPeer: peer,
                                 producerPeer: joinedPeer,
                                 producer,
                             });
+
+                        consumersPromises.push(promise);
                     }
                 }
 
                 for (const broadcaster of this._broadcasters.values()) {
                     for (const producer of broadcaster.data.producers.values()) {
                         // console.log("add producer", producer.id, producer)
-                        this._createConsumer(
+                        const promise = this._createConsumer(
                             {
                                 consumerPeer: peer,
                                 producerPeer: broadcaster,
@@ -721,6 +725,8 @@ class Room extends EventEmitter {
                                 producer,
                             }).catch(() => {
                         });
+
+                        consumersPromises.push(promise);
                     }
                 }
 
@@ -754,7 +760,9 @@ class Room extends EventEmitter {
                     "peer joined [peer: \"%s\", displayName: \"%s\", picture: \"%s\"]",
                     peer.id, displayName, picture);
 
-                this._setConsumersState();
+                Promise.all(consumersPromises).then(() => {
+                    this._setConsumersState();
+                })
 
                 break;
             }
@@ -897,14 +905,21 @@ class Room extends EventEmitter {
                         .catch(() => {});
                 }
 
+                const consumerPromises = [];
                 // Optimization: Create a server-side Consumer for each Peer.
                 for (const otherPeer of this._getJoinedPeers(peer)) {
-                    this._createConsumer({
+                    const promise = this._createConsumer({
                         consumerPeer: otherPeer,
                         producerPeer: peer,
                         producer,
                     });
+
+                    consumerPromises.push(promise);
                 }
+
+                Promise.all(consumerPromises).then(() => {
+                    this._setConsumersState();
+                });
 
                 // UBER
                 if (isUberProducer && roomIds.length) {
@@ -1228,6 +1243,8 @@ class Room extends EventEmitter {
 
     async createConsumersForUberProducer(producerId) {
         const uberProducer = uberProducers.get(producerId);
+        const consumerPromises = [];
+
 
         console.log("createConsumersForUberProducer from room", this._roomId, producerId, Boolean(uberProducer));
 
@@ -1263,14 +1280,20 @@ class Room extends EventEmitter {
         }
 
         for (let peer of peers) {
-            this._createConsumer({
+            const promise = this._createConsumer({
                 consumerPeer: peer,
                 consumerPriority: 255,
                 producerPeer: producerPeer,
                 producer,
                 router,
             });
+
+            consumerPromises.push(promise);
         }
+
+        Promise.all(consumerPromises).then(() => {
+            this._setConsumersState();
+        });
     }
 
     pipeToRouter(producerId, peer, repeat = 0) {
