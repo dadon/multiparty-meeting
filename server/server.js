@@ -321,14 +321,12 @@ app.get("/rooms-stat/:key", (req, res) => {
 app.post(
 	'/rooms/:roomId/consumers', async (req, res, next) =>
 	{
-		console.log("sssss");
 		const {
 			key,
 			consumersState,
 		} = req.body;
 
 		if (key !== KEY) {
-			console.log("no kkkk");
 			res.status(404);
 			return;
 		}

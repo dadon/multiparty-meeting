@@ -1307,6 +1307,7 @@ class Room extends EventEmitter {
                 consumerPeer: peer,
                 consumerPriority: 255,
                 producerPeer: producerPeer,
+                broadcast: true,
                 producer,
                 router,
             });
@@ -1447,7 +1448,7 @@ class Room extends EventEmitter {
                 priority = consumerPriority;
             }
 
-            await consumer.setPriority(priority);
+            consumer.setPriority(priority);
         } catch (error) {
             logger.warn("_createConsumer() | [error:\"%o\"]", error);
 
@@ -1805,6 +1806,7 @@ class Room extends EventEmitter {
 
             for (let consumer of peer.consumers.values()) {
                 const consumerPeerId = consumer.userId;
+                if (data[consumerPeerId] === undefined) continue;
                 let active = Boolean(data[consumerPeerId][consumer.kind]);
                 // console.log("consumer", consumerPeerId, consumer.kind, active);
 
