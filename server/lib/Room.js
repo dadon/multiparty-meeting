@@ -10,10 +10,6 @@ const userRoles = require("../userRoles");
 const utils = require("./utils");
 
 
-function sleep(ms) {
-    return new Promise(r => setTimeout(r, ms));
-}
-
 const permissions = require("../permissions"), {
     CHANGE_ROOM_LOCK,
     PROMOTE_PEER,
