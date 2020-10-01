@@ -6,8 +6,13 @@ const { SocketTimeoutError } = require("./errors");
 const { v4: uuidv4 } = require("uuid");
 const jwt = require("jsonwebtoken");
 const userRoles = require("../userRoles");
+
 const utils = require("./utils");
 
+
+function sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
+}
 
 const permissions = require("../permissions"), {
     CHANGE_ROOM_LOCK,
@@ -111,6 +116,7 @@ class Room extends EventEmitter {
         this._lastN = [];
 
         this._peers = {};
+
         this._peerVolume = {};
 
         this.consumersState = {};
@@ -233,6 +239,20 @@ class Room extends EventEmitter {
 
         if (this._broadcasters.has(id))
             throw new Error(`broadcaster with id "${id}" already exists`);
+
+        let existBroadcasterWithSameDeviceName = null;
+
+        for (let el of this._broadcasters.values()) {
+            if (el.data.device.name === device.name) {
+                existBroadcasterWithSameDeviceName = el;
+                break;
+            }
+        }
+
+        if (existBroadcasterWithSameDeviceName) {
+            console.log("existBroadcasterWithSameDeviceName delete");
+            await this.deleteBroadcaster({ broadcasterId: existBroadcasterWithSameDeviceName.id });
+        }
 
         const broadcaster =
             {
@@ -433,32 +453,28 @@ class Room extends EventEmitter {
         const producer =
             await transport.produce({ kind, rtpParameters });
 
-        // Store it.
         broadcaster.data.producers.set(producer.id, producer);
 
-        // Set Producer events.
-        // producer.on('score', (score) =>
-        // {
-        // 	logger.debug(
-        // 		'broadcaster producer "score" event [producerId:%s, score:%o]',
-        // 		producer.id, score);
-        // });
+        const router = this._mediasoupRouters.get(broadcaster.routerId);
 
-        producer.on("videoorientationchange", (videoOrientation) => {
-            logger.debug(
-                "broadcaster producer \"videoorientationchange\" event [producerId:%s, videoOrientation:%o]",
-                producer.id, videoOrientation);
-        });
+        for (const [routerId, destinationRouter] of this._mediasoupRouters) {
+            if (routerId !== broadcaster.routerId) {
+                await router.pipeToRouter({
+                    producerId: producer.id,
+                    router: destinationRouter,
+                });
+            }
+        }
 
-        // Optimization: Create a server-side Consumer for each Peer.
         for (const peer of this._getJoinedPeers()) {
-            console.log(broadcaster.id, "create consumer for ", peer);
+            console.log("create consumer for broadcaster", broadcaster.id);
 
             this._createConsumer(
                 {
                     consumerPeer: peer,
                     producerPeer: broadcaster,
-                    consumerPriority: 100,
+                    consumerPriority: 255,
+                    broadcast: true,
                     producer,
                 }).catch(() => {
             });
@@ -704,6 +720,7 @@ class Room extends EventEmitter {
                     // Create Consumers for existing Producers.
                     for (const producer of joinedPeer.producers.values()) {
                         const promise = this._createConsumer(
+
                             {
                                 consumerPeer: peer,
                                 producerPeer: joinedPeer,
@@ -711,22 +728,26 @@ class Room extends EventEmitter {
                             });
 
                         consumersPromises.push(promise);
+
                     }
                 }
 
                 for (const broadcaster of this._broadcasters.values()) {
                     for (const producer of broadcaster.data.producers.values()) {
                         // console.log("add producer", producer.id, producer)
+
                         const promise = this._createConsumer(
                             {
                                 consumerPeer: peer,
                                 producerPeer: broadcaster,
-                                consumerPriority: 100,
+                                consumerPriority: 255,
+                                broadcast: true,
                                 producer,
                             }).catch(() => {
                         });
 
                         consumersPromises.push(promise);
+
                     }
                 }
 
@@ -979,6 +1000,7 @@ class Room extends EventEmitter {
             }
 
             case "pauseProducer": {
+
                 // Ensure the Peer is joined.
                 if (!peer.joined)
                     throw new Error("Peer not yet joined");
@@ -1357,8 +1379,8 @@ class Room extends EventEmitter {
      *
      * @async
      */
-    async _createConsumer({ consumerPeer, producerPeer, producer, consumerPriority, router }) {
-        console.log("_createConsumer", consumerPeer.id);
+
+    async _createConsumer({ consumerPeer, producerPeer, producer, consumerPriority, router, broadcast }) {
         logger.debug(
             "_createConsumer() [consumerPeer:\"%s\", producerPeer:\"%s\", producer:\"%s\"]",
             consumerPeer.id,
@@ -1500,6 +1522,9 @@ class Room extends EventEmitter {
             // Now that we got the positive response from the remote Peer and, if
             // video, resume the Consumer to ask for an efficient key frame.
             // await consumer.resume();
+            if (broadcast) {
+                await consumer.resume();
+            }
 
             // this._notification(
             // 	consumerPeer.socket,
@@ -1826,6 +1851,7 @@ class Room extends EventEmitter {
             }
         }
     }
+
 }
 
 module.exports = Room;
