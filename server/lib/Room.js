@@ -156,8 +156,8 @@ class Room extends EventEmitter {
                 maxEntries: 50,
                 threshold: -60,
                 interval: 100,
-            })
-        this.audioLevelObserver.on('volumes', this.onVolumes);
+            });
+        this.audioLevelObserver.on("volumes", this.onVolumes);
         // this.audioLevelObserver.on('silence', this.onSilence);
     }
 
@@ -167,7 +167,7 @@ class Room extends EventEmitter {
         for (let el of volumes) {
             const { producer, volume } = el;
             const peerId = producer.appData.peerId;
-            const volumeNorm = Math.pow(10, volume / 20)
+            const volumeNorm = Math.pow(10, volume / 20);
             console.log("onVolume", peerId, volumeNorm.toFixed(4), volume);
             const oldScore = this._peerVolume[peerId];
             this._peerVolume[peerId] = 15;
@@ -762,7 +762,7 @@ class Room extends EventEmitter {
 
                 Promise.all(consumersPromises).then(() => {
                     this._setConsumersState();
-                })
+                });
 
                 break;
             }
@@ -900,9 +900,10 @@ class Room extends EventEmitter {
 
                 cb(null, { id: producer.id });
 
-                if (kind === 'audio') {
+                if (kind === "audio") {
                     this.audioLevelObserver.addProducer({ producerId: producer.id })
-                        .catch(() => {});
+                        .catch(() => {
+                        });
                 }
 
                 const consumerPromises = [];
@@ -1769,7 +1770,7 @@ class Room extends EventEmitter {
                 if (active) {
                     videoActivePeers.push({
                         peerId: consumerPeerId,
-                        score: this._peerVolume[consumerPeerId] || 0
+                        score: this._peerVolume[consumerPeerId] || 0,
                     });
                 }
             }
