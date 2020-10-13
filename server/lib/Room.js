@@ -155,7 +155,7 @@ class Room extends EventEmitter {
     async registerObserver() {
         this.audioLevelObserver = await this._currentRouter.createAudioLevelObserver(
             {
-                maxEntries: 50,
+                maxEntries: 5,
                 threshold: -60,
                 interval: 100,
             });
@@ -587,16 +587,18 @@ class Room extends EventEmitter {
     }
 
     _peerJoining(peer, returning = false) {
+        console.log(`_peerJoining ${peer.id}`);
         this._queue.push(async () => {
             peer.socket.join(this._roomId);
 
             // If we don't have this peer, add to end
-            !this._lastN.includes(peer.id) && this._lastN.push(peer.id);
+            // !this._lastN.includes(peer.id) && this._lastN.push(peer.id);
 
             this._peers[peer.id] = peer;
 
             // Assign routerId
             peer.routerId = await this._getRouterId();
+            console.log(`asign router ${peer.routerId} to peer ${peer.id}`);
 
             this._registerPeerOnWorker(this._mediasoupRouters.get(peer.routerId), peer.id);
             logger.info("_peerJoining() assign router [roomId:%s peerId:%s routerId:%s]", this._roomId, peer.id, peer.routerId);
@@ -608,6 +610,8 @@ class Room extends EventEmitter {
             } else {
                 this._notification(peer.socket, "roomReady");
             }
+
+            console.log("_notification sent to ", peer.id);
         })
             .catch((error) => {
                 logger.error("_peerJoining() [error:\"%o\"]", error);
@@ -1808,12 +1812,12 @@ class Room extends EventEmitter {
 
                 if (active && consumer.kind === "audio") {
                     const score = this._peerVolume[consumerPeerId];
-                    console.log("peer score", score);
+                    // console.log("peer score", score);
 
                     if (!score || score <= 0) {
                         active = false;
                         data[consumerPeerId][consumer.kind] = false;
-                        console.log(`pause inactive ${consumerPeerId} for ${peer.id}`);
+                        // console.log(`pause inactive ${consumerPeerId} for ${peer.id}`);
                     }
                 }
 
@@ -1821,19 +1825,19 @@ class Room extends EventEmitter {
                     if (!videoActivePeers.includes(consumerPeerId)) {
                         active = false;
                         data[consumerPeerId][consumer.kind] = false;
-                        console.log(`pause video in terms of lastN ${consumerPeerId} for ${peer.id}`);
+                        // console.log(`pause video in terms of lastN ${consumerPeerId} for ${peer.id}`);
                     }
                 }
 
                 if (active) {
                     if (consumer.paused) {
-                        console.log(`resume ${consumerPeerId} for ${peer.id}`);
+                        // console.log(`resume ${consumerPeerId} for ${peer.id}`);
                         consumer.resume();
                         needUpdateForPeer = true;
                     }
                 } else {
                     if (!consumer.paused) {
-                        console.log(`pause ${consumerPeerId} for ${peer.id}`);
+                        // console.log(`pause ${consumerPeerId} for ${peer.id}`);
                         consumer.pause();
                         needUpdateForPeer = true;
                     }
