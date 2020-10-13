@@ -548,7 +548,9 @@ class Room extends EventEmitter {
                 peer.id);
         }
 
-        this._peerJoining(peer, returning);
+        this._peerJoining(peer, returning).catch(error => {
+            logger.error("_peerJoining() [error:\"%o\"]", error);
+        });
     }
 
     dump() {
@@ -586,9 +588,10 @@ class Room extends EventEmitter {
         return Object.keys(this._peers).length === 0;
     }
 
-    _peerJoining(peer, returning = false) {
+    async _peerJoining(peer, returning = false) {
         console.log(`_peerJoining ${peer.id}`);
-        this._queue.push(async () => {
+        // this._queue.push(async () => {
+        //     console.log(`_peerJoining _queue ${peer.id}`);
             peer.socket.join(this._roomId);
 
             // If we don't have this peer, add to end
@@ -612,10 +615,10 @@ class Room extends EventEmitter {
             }
 
             console.log("_notification sent to ", peer.id);
-        })
-            .catch((error) => {
-                logger.error("_peerJoining() [error:\"%o\"]", error);
-            });
+        // })
+            // .catch((error) => {
+            //     logger.error("_peerJoining() [error:\"%o\"]", error);
+            // });
     }
 
     _handlePeer(peer) {
