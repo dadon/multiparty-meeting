@@ -169,8 +169,8 @@ class Room extends EventEmitter {
         for (let el of volumes) {
             const { producer, volume } = el;
             const peerId = producer.appData.peerId;
-            const volumeNorm = Math.pow(10, volume / 20);
-            console.log("onVolume", peerId, volumeNorm.toFixed(4), volume);
+            // const volumeNorm = Math.pow(10, volume / 20);
+            // console.log("onVolume", peerId, volumeNorm.toFixed(4), volume);
             const oldScore = this._peerVolume[peerId];
             this._peerVolume[peerId] = 15;
 
@@ -192,7 +192,7 @@ class Room extends EventEmitter {
 
             if (oldScore) {
                 this._peerVolume[peerId] = oldScore - 1;
-                console.log("decrease score for peer", peerId, this._peerVolume[peerId]);
+                // console.log("decrease score for peer", peerId, this._peerVolume[peerId]);
             }
 
             if (oldScore && !this._peerVolume[peerId]) {
