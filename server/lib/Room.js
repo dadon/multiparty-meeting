@@ -1636,10 +1636,14 @@ class Room extends EventEmitter {
             const srcRouter = this._mediasoupRouters.get(peer.routerId);
 
             for (const producerId of peer.producers.keys()) {
-                await srcRouter.pipeToRouter({
-                    producerId,
-                    router: this._currentRouter,
-                });
+                try {
+                    await srcRouter.pipeToRouter({
+                        producerId,
+                        router: this._currentRouter,
+                    });
+                } catch (e) {
+                    console.error("pipeToRouter error", producerId, e);
+                }
             }
         }
 
@@ -1654,10 +1658,14 @@ class Room extends EventEmitter {
 
             console.log("pip uber producer to new router", router, this._currentRouter);
 
-            await router.pipeToRouter({
-                producerId,
-                router: this._currentRouter,
-            });
+            try {
+                await router.pipeToRouter({
+                    producerId,
+                    router: this._currentRouter,
+                });
+            } catch (e) {
+                console.error("pipeToRouter uberProducer error", producerId, e);
+            }
 
             this.markRouterUberProducer(producerId, this._currentRouter.id);
         }
