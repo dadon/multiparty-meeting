@@ -155,9 +155,9 @@ class Room extends EventEmitter {
     async registerObserver() {
         this.audioLevelObserver = await this._currentRouter.createAudioLevelObserver(
             {
-                maxEntries: 5,
+                maxEntries: 1,
                 threshold: -60,
-                interval: 100,
+                interval: 1000,
             });
         this.audioLevelObserver.on("volumes", this.onVolumes);
         // this.audioLevelObserver.on('silence', this.onSilence);
@@ -1782,7 +1782,7 @@ class Room extends EventEmitter {
     }
 
     setConsumersState(consumersState) {
-        console.log("consumersState", consumersState);
+        // console.log("consumersState", consumersState);
         this.consumersState = consumersState;
         this._setConsumersState();
     }
