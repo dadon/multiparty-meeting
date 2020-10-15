@@ -29,6 +29,8 @@ const logger = new Logger("Room");
 const roomsMap = new Map();
 const uberProducers = new Map();
 
+const MAX_VIDEOS = 15;
+
 
 const roomPermissions =
     {
@@ -1813,7 +1815,7 @@ class Room extends EventEmitter {
             }
 
             videoActivePeers.sort((a, b) => b.score - a.score);
-            videoActivePeers = videoActivePeers.slice(0, 8).map(el => el.peerId);
+            videoActivePeers = videoActivePeers.slice(0, MAX_VIDEOS).map(el => el.peerId);
 
             for (let consumer of peer.consumers.values()) {
                 const consumerPeerId = consumer.userId;
