@@ -1685,8 +1685,12 @@ class Room extends EventEmitter {
             const newRouterId = this._getLeastLoadedRouter();
 
             if (currentRouterId !== newRouterId) {
-                this._currentRouter = this._mediasoupRouters.get(newRouterId);
-                await this._pipeProducersToNewRouter();
+                const newRouter = this._mediasoupRouters.get(newRouterId);
+                const newRouterLoad = this._getRouterLoad(newRouter);
+                if (newRouterLoad < MAX_CONSUMERS_PER_WORKER && newRouterLoad - routerLoad > 200) {
+                    this._currentRouter = this._mediasoupRouters.get(newRouterId);
+                    await this._pipeProducersToNewRouter();
+                }
             }
         }
 
@@ -1778,7 +1782,7 @@ class Room extends EventEmitter {
             result.peers = worker.realPeers.length;
         }
 
-        let load = Math.max(result.consumers, result.peers * 50);
+        let load = Math.max(result.consumers, result.peers * 46);
 
         return load;
     }
